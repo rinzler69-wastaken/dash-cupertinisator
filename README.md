@@ -93,9 +93,9 @@ This extension operates on top of Dash to Dock and GNOME Shell internals, both o
 Toggling D2D's Intelligent Autohide on or off sometimes causes app icons to render below the dock pill background. Workaround: disable and re-enable Dash Cupertinisator.
 
 - **Dock placement change requires manual re-trigger**
-Changing dock position (bottom/left/right) in D2D settings sometimes kills Cupertinisator's animation hooks. The theme survives but animations go dead. Workaround: toggle the extension off and on after changing position.
+Changing dock position (bottom/left/right) in D2D settings kills Cupertinisator's animation hooks. The theme survives but animations go dead. Workaround: toggle the extension off and on after changing position.
 
-- **FUTURE FEATURE PLAN: Running indicator dots ignore dock position**
+- **(FUTURE FEATURE PLAN: Running indicator position follows dock position) Running indicator dots ignore dock position**
 The running dot under app icons always appears at the bottom of the icon regardless of dock position. On a left or right dock, the dot should appear on the side facing the screen center. This requires monkeypatching D2D's indicator update pipeline and is deferred for a future contributor.
 
 - **No dock scaling when icon count overflows**
@@ -105,7 +105,7 @@ macOS shrinks the dock proportionally when too many apps are pinned. GNOME Shell
 When using Blur My Shell, the blur film underneath the dock pill does not respect the dock's border radius — square corners bleed out from behind the rounded pill. This requires deep integration with BMS's compositor pipeline and is deferred for a future contributor. -->
 
 - **Dock sometimes visible during fullscreen with missing icons**
-In certain fullscreen scenarios (particularly when switching workspaces mid-game), the dock pill may appear without icons due to compositor z-order conflicts between the fullscreen surface and the dock actor tree. macOS hides the dock entirely in fullscreen; this behavior is partially enforced but not bulletproof in all compositor states.
+In certain fullscreen scenarios (particularly when switching workspaces mid-game, dock hasn't hidden yet when entering fullscreen, or opening Activities Overview from a fullscreen app/workspace), the dock pill may appear without icons due to compositor z-order conflicts between the fullscreen surface and the dock actor tree. Currently, dock is hidden altogether during fullscreen.
 
 ---
 
