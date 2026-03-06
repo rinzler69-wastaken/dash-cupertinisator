@@ -1,0 +1,20 @@
+{
+  "description": "Smooth, refined magnification and jump animations for the Dash to Dock icons.",
+  "name": "Dash Cupertinisator",
+  "original-authors": [
+    "rinzler69-wastaken"
+  ],
+  "shell-version": [
+    "45",
+    "46",
+    "47",
+    "48",
+    "49"
+  ],
+  "url": "https://github.com/rinzler69-wastaken/dash-cupertinisator",
+  "uuid": "dash-cupertinisator@rinzler69-wastaken.github.com",
+  "schema-id": "org.gnome.shell.extensions.dash-cupertinisator",
+  "gettext-domain": "dash-cupertinisator",
+  "settings-schema": "org.gnome.shell.extensions.dash-cupertinisator",
+  "version": 1.0
+}

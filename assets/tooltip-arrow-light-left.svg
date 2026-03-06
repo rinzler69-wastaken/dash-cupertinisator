@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg width="6" height="12" viewBox="0 0 6 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Leftward pointing arrow, light mode -->
+  <path d="M6 0L0 6L6 12V0Z" fill="rgba(250, 250, 250, 0.8)"/>
+  <path d="M6 0L0 6L6 12" stroke="rgba(34, 34, 38, 0.15)" stroke-width="1" fill="none"/>
+</svg>

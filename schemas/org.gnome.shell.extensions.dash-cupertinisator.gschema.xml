@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist gettext-domain="dash-cupertinisator">
+  <schema id="org.gnome.shell.extensions.dash-cupertinisator" path="/org/gnome/shell/extensions/dash-cupertinisator/">
+    <key name="animation-magnify" type="d">
+      <default>0.5</default>
+      <summary>Animation Magnification</summary>
+      <description>The scale multiplier to magnify icons during hovering.</description>
+    </key>
+    <key name="animation-spread" type="d">
+      <default>0.6</default>
+      <summary>Animation Spread</summary>
+      <description>How much adjacent icons spread apart when hovered.</description>
+    </key>
+    <key name="animation-rise" type="d">
+      <default>0.2</default>
+      <summary>Animation Rise</summary>
+      <description>How high the hovered icons rise above the baseline.</description>
+    </key>
+    <key name="enable-miniatures" type="b">
+      <default>false</default>
+      <summary>Enable Liquid Miniatures</summary>
+      <description>Show minimized windows as miniature previews in the dock.</description>
+    </key>
+    <key name="enable-magnification" type="b">
+      <default>true</default>
+      <summary>Enable Magnification</summary>
+      <description>Whether to magnify icons on hover.</description>
+    </key>
+    <key name="jump-height" type="d">
+      <default>0.85</default>
+      <summary>Jump Height</summary>
+      <description>How high icons jump when clicked or starting.</description>
+    </key>
+    <key name="jump-speed" type="d">
+      <default>1.0</default>
+      <summary>Jump Speed</summary>
+      <description>The speed of the icon jump animation.</description>
+    </key>
+    <key name="override-theming" type="b">
+      <default>false</default>
+      <summary>Override Dock Theming</summary>
+      <description>Apply macOS-inspired dock styling on top of Dash to Dock.</description>
+    </key>
+    <key name="dock-theme" type="s">
+      <default>'bigsur'</default>
+      <summary>Dock Theme</summary>
+      <description>Which macOS dock theme to apply. Either 'mojave' or 'bigsur'.</description>
+    </key>
+    <key name="theme-aware" type="b">
+      <default>true</default>
+      <summary>Follow System Theme</summary>
+      <description>Automatically switch between light and dark dock theme with the system.</description>
+    </key>
+    <key name="dock-color-scheme" type="s">
+      <default>'dark'</default>
+      <summary>Dock Color Scheme</summary>
+      <description>Manual light/dark selection when theme-aware is off. Either 'light' or 'dark'.</description>
+    </key>
+    <key name="show-badges" type="b">
+      <default>true</default>
+      <summary>Show Notification Badges</summary>
+      <description>Show notification badge dots on dock icons. Greyed out when Dash to Dock has badges disabled.</description>
+    </key>
+    <key name="show-count" type="b">
+      <default>true</default>
+      <summary>Show Unread Count Number</summary>
+      <description>Show the physical number of unread notifications inside the badge.</description>
+    </key>
+  </schema>
+</schemalist>

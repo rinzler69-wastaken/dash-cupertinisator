@@ -1,0 +1,713 @@
+/* extension.js
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ * SPDX-License-Identifier: GPL-2.0-or-later
+ */
+
+/* exported init */
+
+import Gio from 'gi://Gio';
+import GLib from 'gi://GLib';
+import St from 'gi://St';
+import * as Main from 'resource:///org/gnome/shell/ui/main.js';
+
+import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js';
+
+import { Animator } from './animator.js';
+import { setInterval, clearInterval } from './utils.js';
+
+export default class DashAnimatorExtension extends Extension {
+  enable() {
+    this._settings = this.getSettings('org.gnome.shell.extensions.dash-cupertinisator');
+    this._applySettings();
+    this._settingsChangedId = this._settings.connect('changed', () => this._applySettings());
+
+    this._extensionManager = Main.extensionManager;
+    this._d2dId = 'dash-to-dock@micxgx.gmail.com';
+
+    this._extensionStateChangedId = this._extensionManager.connect('extension-state-changed', (em, ext) => {
+      if (ext.uuid === this._d2dId) {
+        this._checkDashToDock();
+      }
+    });
+
+    this._checkDashToDock();
+    this._connectScreenSaver();
+  }
+
+  _connectScreenSaver() {
+    this._screenSaverProxy = new Gio.DBusProxy.makeProxyWrapper(
+      '<node><interface name="org.gnome.ScreenSaver">' +
+      '<signal name="ActiveChanged"><arg type="b"/></signal>' +
+      '</interface></node>'
+    )(Gio.DBus.session, 'org.gnome.ScreenSaver', '/org/gnome/ScreenSaver');
+
+    this._screenSaverSignalId = this._screenSaverProxy.connectSignal(
+      'ActiveChanged',
+      (proxy, sender, [active]) => {
+        if (active) {
+          // Screen locked / suspended — disable cupertinisator, leave D2D alone
+          this._doDisable();
+        } else {
+          // Unlocked — wait for shell to settle before re-enabling
+          GLib.timeout_add(GLib.PRIORITY_DEFAULT, 800, () => {
+            this._checkDashToDock();
+            return false; // don't repeat
+          });
+        }
+      }
+    );
+  }
+
+  _disconnectScreenSaver() {
+    if (this._screenSaverProxy && this._screenSaverSignalId) {
+      this._screenSaverProxy.disconnectSignal(this._screenSaverSignalId);
+      this._screenSaverSignalId = null;
+    }
+    this._screenSaverProxy = null;
+  }
+
+  _checkDashToDock() {
+    let d2d = this._extensionManager.lookup(this._d2dId);
+    let isD2DEnabled = d2d && d2d.state === 1; // 1 is ENABLED
+
+    if (isD2DEnabled && !this.running) {
+      this._doEnable();
+    } else if (!isD2DEnabled && this.running) {
+      this._doDisable();
+    }
+  }
+
+  _doEnable() {
+    if (this.running) return;
+    this.running = true;
+
+    this.animator = new Animator();
+    this.animator.extension = this;
+
+    this.services = {
+      updateIcon: (icon) => {
+        if (icon && icon.icon_name && icon.icon_name.startsWith('user-trash')) {
+          if (icon._source && icon._source.first_child && icon.icon_name != icon._source.first_child.icon_name) {
+            icon.icon_name = icon._source.first_child.icon_name;
+          }
+        }
+      },
+    };
+
+    this.enabled = true;
+    this._dragging = false;
+
+    if (!this._findDashContainer()) {
+      this._findDashIntervalId = setInterval(() => {
+        if (this._findDashContainer()) {
+          clearInterval(this._findDashIntervalId);
+          this._findDashIntervalId = null;
+        }
+      }, 500);
+    }
+
+    this._displayEvents = [];
+    this._displayEvents.push(global.display.connect('notify::focus-window', this._onFocusWindow.bind(this)));
+    this._displayEvents.push(global.display.connect('in-fullscreen-changed', this._onFullScreen.bind(this)));
+
+    this._windowEvents = [];
+    this._windowEvents.push(global.window_manager.connect('minimize', (wm, actor) => {
+      if (this.enable_miniatures && this.animator) this.animator.addMiniature(actor.get_meta_window());
+    }));
+    this._windowEvents.push(global.window_manager.connect('unminimize', (wm, actor) => {
+      if (this.enable_miniatures && this.animator) this.animator.removeMiniature(actor.get_meta_window());
+    }));
+
+    this.animator.enable();
+    this._connectThemeSettings();
+    this._connectD2DGuards();
+  }
+
+  _doDisable() {
+    if (!this.running) return;
+    this.running = false;
+
+    this._disconnectD2DGuards();
+    this._disconnectThemeSettings();
+    if (this.animator) this.animator.disable();
+
+    if (this._findDashIntervalId) {
+      clearInterval(this._findDashIntervalId);
+      this._findDashIntervalId = null;
+    }
+
+    if (this._intervals) {
+      this._intervals.forEach(id => clearInterval(id));
+      this._intervals = [];
+    }
+    if (this._oneShotId) {
+      clearInterval(this._oneShotId);
+      this._oneShotId = null;
+    }
+    if (this._jumpHideTimer) {
+      clearInterval(this._jumpHideTimer);
+      this._jumpHideTimer = null;
+    }
+
+    if (this._windowEvents) {
+      this._windowEvents.forEach(id => global.window_manager.disconnect(id));
+      this._windowEvents = [];
+    }
+
+    if (this._displayEvents) {
+      this._displayEvents.forEach(id => global.display.disconnect(id));
+      this._displayEvents = [];
+    }
+
+    if (this.dashContainer) {
+      this.dashContainer._animateIn = this.dashContainer.__animateIn;
+      this.dashContainer._animateOut = this.dashContainer.__animateOut;
+      this.dashContainer.set_reactive(false);
+      this.dashContainer.set_track_hover(false);
+      this.dashContainerEvents.forEach(id => {
+        if (this.dashContainer) this.dashContainer.disconnect(id);
+      });
+      this.dashContainerEvents = [];
+      this.dashContainer = null;
+    }
+
+    if (this.dash) {
+      this.dashEvents.forEach(id => {
+        if (this.dash) this.dash.disconnect(id);
+      });
+      this.dashEvents = [];
+      this.dash = null;
+    }
+
+    if (this._layoutManagerEvents) {
+      this._layoutManagerEvents.forEach(id => Main.layoutManager.disconnect(id));
+    }
+    this._layoutManagerEvents = [];
+
+    this.animator = null;
+  }
+
+  disable() {
+    if (this._extensionStateChangedId) {
+      this._extensionManager.disconnect(this._extensionStateChangedId);
+      this._extensionStateChangedId = null;
+    }
+
+    this._disconnectScreenSaver();
+    this._doDisable();
+
+    if (this._settingsChangedId) {
+      this._settings.disconnect(this._settingsChangedId);
+      this._settingsChangedId = null;
+    }
+    this._settings = null;
+  }
+
+  _applySettings() {
+    this.animation_magnify = this._settings.get_double('animation-magnify');
+    this.animation_spread = this._settings.get_double('animation-spread');
+    this.animation_rise = this._settings.get_double('animation-rise');
+    this.enable_miniatures = this._settings.get_boolean('enable-miniatures');
+    this.enable_magnification = this._settings.get_boolean('enable-magnification');
+    this.jump_height = this._settings.get_double('jump-height');
+    this.jump_speed = this._settings.get_double('jump-speed');
+  }
+
+  _findChildByName(actor, name) {
+    if (!actor) return null;
+    if (actor.name === name) return actor;
+
+    let children = actor.get_children();
+    for (let i = 0; i < children.length; i++) {
+      let found = this._findChildByName(children[i], name);
+      if (found) return found;
+    }
+    return null;
+  }
+
+  _findDashContainer() {
+
+
+    if (this.dashContainer) {
+      return false;
+    }
+
+    this.dashContainer = this._findChildByName(Main.uiGroup, 'dashtodockContainer');
+    if (!this.dashContainer) {
+      return false;
+    }
+
+    if (this._findDashIntervalId) {
+      clearInterval(this._findDashIntervalId);
+      this._findDashIntervalId = null;
+    }
+
+    this.scale = 1;
+    this.dashContainer.delegate = this;
+    this.animator.dashContainer = this.dashContainer;
+
+
+
+    this.dash = this._findChildByName(this.dashContainer, 'dash');
+    this.dashEvents = [];
+    this.dashEvents.push(
+      this.dash.connect('icon-size-changed', this._startAnimation.bind(this))
+    );
+
+    this.dashContainer.set_reactive(true);
+    this.dashContainer.set_track_hover(true);
+
+    this.dashContainerEvents = [];
+    this.dashContainerEvents.push(
+      this.dashContainer.connect('motion-event', this._onMotionEvent.bind(this))
+    );
+    this.dashContainerEvents.push(
+      this.dashContainer.connect('enter-event', this._onEnterEvent.bind(this))
+    );
+    this.dashContainerEvents.push(
+      this.dashContainer.connect('leave-event', this._onLeaveEvent.bind(this))
+    );
+    this.dashContainerEvents.push(
+      this.dashContainer.connect('destroy', () => {
+        this.animator.disable();
+        this.animator.enable();
+        this.dashContainer = null;
+        this._findDashIntervalId = setInterval(
+          this._findDashContainer.bind(this),
+          500
+        );
+      })
+    );
+
+    // hooks
+    this.dashContainer.__animateIn = this.dashContainer._animateIn;
+    this.dashContainer.__animateOut = this.dashContainer._animateOut;
+
+    this.dashContainer._animateIn = (time, delay) => {
+      if (this._jumpHideTimer) {
+        clearInterval(this._jumpHideTimer);
+        this._jumpHideTimer = null;
+      }
+      this._isHidden = false;
+      this._startAnimation();
+      this.dashContainer.__animateIn(time, delay);
+    };
+    this.dashContainer._animateOut = (time, delay) => {
+      // Block hide if bouncing OR if any app is still launching (STARTING)
+      const isStartingOrJumpingOrMagnifying = () => {
+        if (this.animator && this.animator.isJumping()) return true;
+        if (this.animator && typeof this.animator.isMagnifying === 'function' && this.animator.isMagnifying()) return true;
+        return false;
+      };
+      if (isStartingOrJumpingOrMagnifying()) {
+        this.dashContainer.__animateIn(0.2, 0);
+        if (this._jumpHideTimer) clearInterval(this._jumpHideTimer);
+        this._jumpHideTimer = setInterval(() => {
+          if (!isStartingOrJumpingOrMagnifying()) {
+            clearInterval(this._jumpHideTimer);
+            this._jumpHideTimer = null;
+            if (this._isHidden) {
+              // Was already hidden, don't re-trigger
+            } else {
+              this._isHidden = true;
+              this.dashContainer.__animateOut(time, delay);
+            }
+          }
+        }, 100);
+        return;
+      }
+      this._isHidden = true;
+      this._startAnimation();
+      this.dashContainer.__animateOut(time, delay);
+    };
+
+    this.animator._animate();
+    return true;
+  }
+
+  _findIcons() {
+    if (!this.dash || !this.dashContainer) return [];
+
+    let dashChildren = this.dash._box.get_children();
+
+    // hook on showApps
+    if (this.dash.showAppsButton && !this.dash.showAppsButton._checkEventId) {
+      this.dash.showAppsButton._checkEventId = this.dash.showAppsButton.connect(
+        'notify::checked',
+        () => {
+          if (!Main.overview.visible) {
+            this._findChildByName(Main.uiGroup, 'overview')
+              ._controls._toggleAppsPage();
+          }
+        }
+      );
+    }
+
+    let icons = dashChildren.filter((actor) => {
+      if (actor.child && actor.child._delegate && actor.child._delegate.icon) {
+        return true;
+      }
+      return false;
+    });
+
+    icons.forEach((c) => {
+      let appwell = c.first_child;
+      if (c._appwell === appwell) return; // Already processed
+
+      let widget = appwell.first_child;
+      let icongrid = widget.first_child;
+      let boxlayout = icongrid.first_child;
+      let bin = boxlayout.first_child;
+      if (!bin) return;
+      let icon = bin.first_child;
+
+      c._bin = bin;
+      c._label = c.label;
+      c._draggable = appwell._draggable;
+      c._appwell = appwell;
+      if (icon) {
+        c._icon = icon;
+      }
+
+      // Hook notify::urgent on inner AppIcon so bounce + dock show fires immediately
+      let appIcon = appwell.child && appwell.child._delegate;
+      if (appIcon && !appIcon._dashAnimatorUrgentHooked) {
+        appIcon._dashAnimatorUrgentHooked = true;
+        appIcon.connect('notify::urgent', () => {
+          if (appIcon.urgent && !(c._attentionJump > 0)) {
+            c._attentionCooldown = 0;
+            c._attentionJump = 1.0;
+            if (this.animator) this.animator._startAnimation();
+            if (this.dashContainer && this.dashContainer._animateIn)
+              this.dashContainer._animateIn(0.2, 0);
+          }
+        });
+      }
+    });
+
+    try {
+      let apps = Main.overview.dash.last_child.last_child;
+      if (apps) {
+        let widget = apps.child;
+        // account for JustPerfection & dash-to-dock hiding the app button
+        if (widget && widget.width > 0 && widget.get_parent().visible) {
+          let icongrid = widget.first_child;
+          let boxlayout = icongrid.first_child;
+          let bin = boxlayout.first_child;
+          let icon = bin.first_child;
+          let c = {
+            child: widget,
+            _bin: bin,
+            _icon: icon,
+            _label: widget._delegate.label,
+            _appwell: widget, // ShowApps button acts as its own appwell here
+          };
+          icons.push(c);
+        }
+      }
+    } catch (err) {
+      // could happen if ShowApps is hidden
+    }
+
+    this.dashContainer._icons = icons;
+    return icons;
+  }
+
+  _beginAnimation() {
+    if (this.animator)
+      this.animator._beginAnimation();
+  }
+
+  _endAnimation() {
+    if (this.animator)
+      this.animator._endAnimation();
+  }
+
+  _debounceEndAnimation() {
+    if (this.animator)
+      this.animator._debounceEndAnimation();
+  }
+
+  _onMotionEvent() {
+    if (this.animator)
+      this.animator._onMotionEvent();
+  }
+
+  _onEnterEvent() {
+    if (this.animator)
+      this.animator._onEnterEvent();
+  }
+
+  _onLeaveEvent() {
+    if (this.animator)
+      this.animator._onLeaveEvent();
+  }
+
+  _onFocusWindow() {
+    if (this.animator)
+      this.animator._onFocusWindow();
+  }
+
+  _onFullScreen() {
+    if (this.animator)
+      this.animator._onFullScreen();
+
+    // Force-hide dock in fullscreen — macOS dock never shows in fullscreen
+    const isFullscreen = global.display.get_monitor_in_fullscreen(
+      global.display.get_current_monitor()
+    );
+    if (isFullscreen) {
+      if (this.dashContainer && this.dashContainer._animateOut)
+        this.dashContainer._animateOut(0.1, 0);
+    } else {
+      // Exiting fullscreen (e.g. workspace switch) — slide in smoothly
+      if (this.dashContainer && this.dashContainer._animateIn)
+        this.dashContainer._animateIn(0.3, 0.1);
+    }
+  }
+
+  _startAnimation() {
+    if (this.animator)
+      this.animator._startAnimation();
+  }
+  // ── Theme injection ──────────────────────────────────────────────────────
+
+  _getD2DSettings() {
+    try {
+      const d2dExt = this._extensionManager.lookup(this._d2dId);
+      if (!d2dExt || d2dExt.state !== 1) return null;
+      return d2dExt.stateObj?.dockManager?.settings ?? null;
+    } catch (e) { return null; }
+  }
+
+  // Expand .side.shrink selectors to also match .side (non-shrink),
+  // so D2D's custom-theme-shrink toggle has no effect on our styling.
+  // Returns a Gio.File pointing to the expanded temp file, or the original on failure.
+  _expandCssAliases(cssFile, fileName) {
+    try {
+      const [ok, bytes] = cssFile.load_contents(null);
+      if (!ok) return cssFile;
+
+      let css = new TextDecoder().decode(bytes);
+
+      css = css.replace(/([^{}]+)\{/g, (match, selectors) => {
+        if (selectors.trim().startsWith('@')) return match;
+
+        let newSelectors = selectors.split(',').map(s => {
+          let hasShrink = false;
+          for (const side of ['bottom', 'top', 'left', 'right']) {
+            if (s.includes(`.${side}.shrink`)) {
+              hasShrink = true;
+              break;
+            }
+          }
+          if (hasShrink) {
+            return s.replace(/\.shrink/g, '') + ',' + s;
+          }
+          return s;
+        }).join(',');
+
+        return newSelectors + '{';
+      });
+
+      const tmpPath = GLib.build_filenamev([GLib.get_tmp_dir(), `c12r-${fileName}`]);
+      const tmpFile = Gio.File.new_for_path(tmpPath);
+      const stream = tmpFile.replace(null, false, Gio.FileCreateFlags.REPLACE_DESTINATION, null);
+      stream.write_all(new TextEncoder().encode(css), null);
+      stream.close(null);
+      return tmpFile;
+    } catch (e) {
+      log(`[cupertinisator] alias expansion failed, using original: ${e.message}`);
+      return cssFile;
+    }
+  }
+
+  _applyThemeOverride() {
+    if (this._themeApplyTimeoutId) {
+      GLib.source_remove(this._themeApplyTimeoutId);
+      this._themeApplyTimeoutId = null;
+    }
+
+    if (!this._settings.get_boolean('override-theming')) {
+      const applyVanillaNow = () => {
+        this._removeThemeOverride(true);
+        GLib.timeout_add(GLib.PRIORITY_DEFAULT, 150, () => {
+          if (this.animator) this.animator.reloadIcons();
+          if (this.dashContainer && this.dashContainer._animateIn) {
+            this.dashContainer._animateIn(0.2, 0); // Slide back in with vanilla theme
+          }
+          return GLib.SOURCE_REMOVE;
+        });
+      };
+
+      if (this.dashContainer && this.dashContainer._animateOut && !this.dashContainer._isHidden && this._loadedThemeFile) {
+        this.dashContainer._animateOut(0.2, 0); // Slide out before stripping
+        this._themeApplyTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 250, () => {
+          applyVanillaNow();
+          this._themeApplyTimeoutId = null;
+          return GLib.SOURCE_REMOVE;
+        });
+      } else {
+        applyVanillaNow();
+      }
+      return;
+    }
+
+    const theme = this._settings.get_string('dock-theme');
+    const aware = this._settings.get_boolean('theme-aware');
+    let scheme;
+
+    if (aware) {
+      const desktopSettings = Gio.Settings.new('org.gnome.desktop.interface');
+      scheme = desktopSettings.get_string('color-scheme') === 'prefer-dark' ? 'dark' : 'light';
+    } else {
+      scheme = this._settings.get_string('dock-color-scheme');
+    }
+
+    const fileName = `${theme}-${scheme}.css`;
+    const cssFile = Gio.File.new_for_path(`${this.path}/themes/${fileName}`);
+
+    log(`[cupertinisator] path: ${this.path}`);
+    log(`[cupertinisator] looking for: ${cssFile.get_path()}`);
+    log(`[cupertinisator] exists: ${cssFile.query_exists(null)}`);
+
+    if (!cssFile.query_exists(null)) {
+      log(`[cupertinisator] theme file not found: ${fileName}`);
+      return;
+    }
+
+    const applyThemeNow = () => {
+      this._removeThemeOverride(true);
+
+      const fileToLoad = this._expandCssAliases(cssFile, fileName);
+      const themeContext = St.ThemeContext.get_for_stage(global.stage);
+      const stTheme = themeContext.get_theme();
+      stTheme.load_stylesheet(fileToLoad);
+      this._loadedThemeFile = fileToLoad;
+
+      St.ThemeContext.get_for_stage(global.stage).emit('changed');
+      log(`[cupertinisator] loaded theme: ${fileName}`);
+
+      GLib.timeout_add(GLib.PRIORITY_DEFAULT, 150, () => {
+        if (this.animator) this.animator.reloadIcons();
+        if (this.dashContainer && this.dashContainer._animateIn) {
+          this.dashContainer._animateIn(0.2, 0); // Slide back in with the fresh theme
+        }
+        return GLib.SOURCE_REMOVE;
+      });
+    };
+
+    if (this.dashContainer && this.dashContainer._animateOut && !this.dashContainer._isHidden) {
+      this.dashContainer._animateOut(0.2, 0); // Slide out
+
+      this._themeApplyTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 250, () => {
+        applyThemeNow();
+        this._themeApplyTimeoutId = null;
+        return GLib.SOURCE_REMOVE;
+      });
+    } else {
+      applyThemeNow();
+    }
+  }
+
+  _removeThemeOverride() {
+    if (this._loadedThemeFile) {
+      try {
+        const themeContext = St.ThemeContext.get_for_stage(global.stage);
+        themeContext.get_theme().unload_stylesheet(this._loadedThemeFile);
+      } catch (e) { }
+      this._loadedThemeFile = null;
+    }
+  }
+
+  _connectThemeSettings() {
+    const s = this._settings;
+
+    // Re-apply whenever any relevant setting changes
+    const reapply = () => this._applyThemeOverride();
+    this._themeSettingIds = [
+      s.connect('changed::override-theming', reapply),
+      s.connect('changed::dock-theme', reapply),
+      s.connect('changed::theme-aware', reapply),
+      s.connect('changed::dock-color-scheme', reapply),
+    ];
+
+    // Follow system color-scheme changes
+    this._desktopSettings = new Gio.Settings({ schema_id: 'org.gnome.desktop.interface' });
+    this._colorSchemeId = this._desktopSettings.connect('changed::color-scheme', reapply);
+
+    this._applyThemeOverride();
+  }
+
+  _disconnectThemeSettings() {
+    if (this._themeSettingIds) {
+      this._themeSettingIds.forEach(id => this._settings.disconnect(id));
+      this._themeSettingIds = null;
+    }
+    if (this._desktopSettings && this._colorSchemeId) {
+      this._desktopSettings.disconnect(this._colorSchemeId);
+      this._colorSchemeId = null;
+      this._desktopSettings = null;
+    }
+    this._removeThemeOverride();
+  }
+
+  // ── D2D Guards ──────────────────────────────────────────────────────────
+
+  _connectD2DGuards() {
+    // Guards ensure Dash to Dock settings don't conflict with Cupertinisator
+    // We forcefully disable D2D badges so they don't double up with ours
+    const d2d = this._getD2DSettings();
+    if (!d2d) return;
+    this._d2dSettings = d2d;
+
+    const guardOff = (key, msg) => d2d.connect(`changed::${key}`, () => {
+      if (d2d.get_boolean(key)) {
+        d2d.set_boolean(key, false);
+        Main.notify('Cupertinisator', msg);
+      }
+    });
+
+    const guardOn = (key, msg) => d2d.connect(`changed::${key}`, () => {
+      if (!d2d.get_boolean(key)) {
+        d2d.set_boolean(key, true);
+        Main.notify('Cupertinisator', msg);
+      }
+    });
+
+    // Forcefully disable D2D badges immediately on connect
+    if (d2d.get_boolean('show-icons-emblems')) d2d.set_boolean('show-icons-emblems', false);
+    if (d2d.get_boolean('show-icons-notifications-counter')) d2d.set_boolean('show-icons-notifications-counter', false);
+
+    this._d2dGuardIds = [
+      guardOn('custom-theme-shrink', 'Shrink the Dock must stay enabled for macOS theming.'),
+      guardOff('dock-fixed', 'Panel Mode is not compatible with macOS theming.'),
+      guardOff('apply-custom-theme', 'Built-in theme must stay off — Cupertinisator manages dock styling.'),
+      guardOff('extend-height', 'Extend to Edges is not compatible with macOS theming.'),
+      guardOff('custom-background-color', 'Custom dash color must stay off — Cupertinisator manages dock colours.'),
+      guardOff('show-icons-emblems', 'Dash to Dock badges suppressed while Cupertinisator is active.'),
+      guardOff('show-icons-notifications-counter', 'Dash to Dock badges suppressed while Cupertinisator is active.'),
+    ];
+  }
+
+  _disconnectD2DGuards() {
+    if (this._d2dSettings && this._d2dGuardIds) {
+      this._d2dGuardIds.forEach(id => this._d2dSettings.disconnect(id));
+    }
+    this._d2dGuardIds = null;
+    this._d2dSettings = null;
+  }
+}
