@@ -1,98 +1,122 @@
 # 🍎 Dash Cupertinisator
 
-> **Give your Linux Dash to Dock the premium Cupertino treatment.**
+> **Give your GNOME dock the Cupertino treatment.**
 
-Dash Cupertinisator enhances your GNOME dock with physically coherent magnification, refined launch animations, and macOS-inspired motion design — built for GNOME 45+.
-
----
-
-## ⚡ Core Features
-
-### 🔍 Proportional Magnification
-Experience silky-smooth icon zooming. Our custom math ensures that not only the icon under your cursor grows, but neighbors spread and scale proportionally for a truly organic feel.
-
-### 🔴 Event-Driven Notification Badges
-High-fidelity, event-driven badges that hook directly into the GNOME message tray.
-- **Dynamic Scaling**: Badges scale proportionally with your icons.
-- **Smart Positioning**: Locked to the icon corner with pixel-perfect offsets.
-- **Count Support**: Real-time notification counts with adaptive font sizing.
-
-### 📐 Pixel-Perfect Precision
-- **Adaptive Tooltips**: App labels use LERP-smoothed tracking to follow magnified icons without jitter.
-- **Sync Architecture**: Icons, dots, and badges remain perfectly aligned even during rapid cursor sweeps.
+Dash Cupertinisator sits on top of [Dash to Dock](https://github.com/micheleg/dash-to-dock) and brings macOS-inspired motion, refined launch animations, hand-crafted dock themes, and a suite of quality-of-life polish to your GNOME desktop.
 
 ---
 
-## 🎨 Advanced Aesthetics
+## ✨ Features
 
-### 💎 Premium Theme Overrides
-- **Robust Theme Overrides**: Native, hand-crafted "Big Sur" and "Mojave" styles. Selectable through the extension settings, overrides Dash to Dock's original dock styling.
-- **Floating Pill**: (BIG SUR Dock Style) Modern floating design with refined border radii.
-- **Flush Dock**: (MOJAVE Dock Style) A classic, flush design that sits securely against the screen edge.
-- **Theme Guard**: Automatically handles CSS alias expansion to ensure consistent styling regardless of Dash to Dock's internal toggles.
+### Proportional Magnification
+Icons zoom smoothly under your cursor, with neighbors spreading and scaling proportionally — the same organic, physics-aware feel as the macOS dock.
 
-> **Notes**: - For the Frosted Glass look on your dock, please install [Blur My Shell](https://github.com/aunetx/blur-my-shell).
-> - For a more faithful icon look, please use either of these iconpacks: [OS Catalina Icons](https://github.com/zayronxio/Os-Catalina-icons), for **Mojave** dock style, or [WhiteSur Icon Theme](https://github.com/vinceliuice/WhiteSur-icon-theme), for **Big Sur** dock style.
+### Launch Animations
+Bounce animations fire on app launch and urgent notifications, with a dedicated jump height and speed you can dial in to taste.
+
+### Event-Driven Notification Badges
+Badges hook directly into the GNOME message tray rather than polling. They scale with your icons, stay pixel-locked to the icon corner, and display live unread counts.
+
+### Adaptive Tooltips
+App labels use LERP-smoothed tracking to follow magnified icons without jitter or lag.
+
+### Magic Lamp Integration
+Dash Cupertinisator includes a one-click patcher for the [Compiz-alike Magic Lamp Effect](https://github.com/hermes83/compiz-alike-magic-lamp-effect). The patch prevents minimizing windows from slithering under the dock, and adds bilinear texture filtering to smooth out minimize effect's jagginess.
 
 ---
 
-## 🧞 Magic Lamp Integration
-We love the [Compiz-alike Magic Lamp Effect](https://github.com/hermes83/compiz-alike-magic-lamp-effect). 
-Dash Cupertinisator includes **one-click patch** to ensure minimising windows no longer slither under the dock, and an especially **sweet** addition of Bilinear Texture Filtering to the Magic Lamp effect to mitigate jagginess.
+## 🎨 Themes
+
+Two hand-crafted dock styles, each available in light and dark:
+
+**Big Sur** — A modern floating pill with a gap from the screen edge and generous border radii. Pairs best with the [WhiteSur Icon Theme](https://github.com/vinceliuice/WhiteSur-icon-theme).
+
+**Mojave** — A classic flush dock anchored to the screen edge with squared-off base corners. Pairs best with [OS Catalina Icons](https://github.com/zayronxio/Os-Catalina-icons).
+
+Both themes support bottom, left, and right dock positions.
+
+> For the frosted glass dock background, install [Blur My Shell](https://github.com/aunetx/blur-my-shell).
+
+Theme activation overrides a set of Dash to Dock settings to ensure a coherent Cupertino-faithful look — Built-in D2D theming and non ".shrink" CSS properties are automatically suppressed while the theme is active.
 
 ---
 
 ## 🚀 Installation
 
-1. **Prerequisites**: Ensure you have [Dash to Dock](https://github.com/micheleg/dash-to-dock) or [Ubuntu Dock](https://github.com/micheleg/dash-to-dock) installed and enabled. 
-   **Recommended**: 
-   - Install [Magic Lamp Effect](https://github.com/hermes83/compiz-alike-magic-lamp-effect) for the Magic Lamp window animations, and seeing our patcher in action!
-   - Install [Blur My Shell](https://github.com/aunetx/blur-my-shell) for the Frosted Glass look on the Dock.
+**Prerequisites**
+- [Dash to Dock](https://github.com/micheleg/dash-to-dock) installed and enabled
+- GNOME 45 or later
 
-2. **Clone & Install**:
-   ```bash
-   git clone https://github.com/rinzler69-wastaken/dash-cupertinisator.git
-   cd dash-cupertinisator
-   make install
-   ```
-3. **Restart GNOME Shell**: Press `Alt+F2`, type `r`, and hit `Enter` (X11) or Log out and back in (Wayland).
-4. **Enable**: Use **Extensions** or **Extension Manager** to enable "Dash Cupertinisator".
+**Recommended**
+- [Blur My Shell](https://github.com/aunetx/blur-my-shell) for frosted glass dock background
+- [Magic Lamp Effect](https://github.com/hermes83/compiz-alike-magic-lamp-effect) to use the CAMLE patcher
 
----
+**Steps**
+```bash
+git clone https://github.com/rinzler69-wastaken/dash-cupertinisator.git
+cd dash-cupertinisator
+make install
+```
 
-## 🛠 Customization & Theming
+Then restart GNOME Shell:
+- **X11**: Press `Alt+F2`, type `r`, hit `Enter`
+- **Wayland**: Log out and back in
 
-Open the extension settings to access the **Animation** and **Theme** sections. Dash Cupertinisator is built to be granular, allowing you to build your own "ideal" dock experience.
-
-### 🧪 Animation Settings
-Fine-tune the physics behind your dock's motion:
-- **Magnification Scale**: Adjust how large icons grow on hover (default 0.5 magnification factor).
-- **Distribution Spread**: Control the "bell curve" of the magnification; higher values make neighbors expand further.
-- **Vertical Rise**: Set how high icons lift off from the background during magnification.
-- **Bounce Physics**: Dedicated sliders for **Bounce Height** and **Bounce Speed** for app-icon bounce animation on window launches, and urgent notifications.
-
-### 🎨 Theme Settings
-Our custom CSS engine overrides Dash to Dock with premium, hand-crafted styles:
-- **Dock Styles**:
-  - **Mojave**: A classic, flush design that sits securely against the screen edge.
-  - **Big Sur**: A modern, floating pill design with a gap from the edge and higher border radii.
-- **Intelligent Color Schemes**:
-  - **Follow System Theme**: Automatically swaps between light and dark modes based on your GNOME settings.
-  - **Manual Override**: Force a **Light** or **Dark** aesthetic regardless of system state.
-- **Theme Guard**: NOTE: Activating our theme locks the theming to "Shrink the Dock" to ensure a seamless, Cupertino-faithful look.
-
-### 🔴 Extra Polish
-- **Badge Management**: Toggle event-driven notification badges and unread counts.
-- **CAMLE Patcher**: Apply our high-performance runtime patch to the [Magic Lamp Effect](https://github.com/hermes83/compiz-alike-magic-lamp-effect) with a single click.
+Finally, enable "Dash Cupertinisator" via **Extensions** or **Extension Manager**.
 
 ---
 
-## 🤝 Credits & Acknowledgements
-This project is a heavily refined and modernized evolution of **Dash Animator** by [icedman](https://github.com/icedman). 
+## ⚙️ Settings
 
-Special thanks to the GNOME community for the inspiration and the building blocks that make this possible.
+### Animation
+- **Magnification Scale** — How large icons grow on hover
+- **Distribution Spread** — How far the magnification bell curve reaches to neighboring icons
+- **Vertical Rise** — How high icons lift from the background during magnification
+- **Bounce Height / Speed** — Physics of the launch and urgent apps bounce. It is recommended to turn off "Wiggle Urgent Apps" on Dash To Dock settings for app icon bounce to work properly.
+
+### Theme
+- **Dock Style** — Big Sur or Mojave
+- **Color Scheme** — Follow System (auto light/dark), or manually force Light or Dark
+- **Override Theming** — Master toggle; activating this locks conflicting D2D settings automatically, and disables non ".shrink" CSS properties.
+
+### Extras
+- **Notification Badges** — Toggle event-driven badges and unread counts
+- **CAMLE Patcher** — One-click patch/restore for the Magic Lamp Effect. Automatically backs up original CAMLE files before patching.
+
+---
+
+## 🐛 Known Bugs
+
+This extension operates on top of Dash to Dock and GNOME Shell internals, both of which impose constraints we can't fully work around. The following issues are known and documented for contributors.
+
+**Icons render behind dock background after Intelligent Autohide toggle**
+Toggling D2D's Intelligent Autohide on or off sometimes causes app icons to render below the dock pill background. Workaround: disable and re-enable Dash Cupertinisator.
+
+**Dock placement change requires manual re-trigger**
+Changing dock position (bottom/left/right) in D2D settings sometimes kills Cupertinisator's animation hooks. The theme survives but animations go dead. Workaround: toggle the extension off and on after changing position.
+
+**FUTURE FEATURE PLAN: Running indicator dots ignore dock position**
+The running dot under app icons always appears at the bottom of the icon regardless of dock position. On a left or right dock, the dot should appear on the side facing the screen center. This requires monkeypatching D2D's indicator update pipeline and is deferred for a future contributor.
+
+**No dock scaling when icon count overflows**
+macOS shrinks the dock proportionally when too many apps are pinned. GNOME Shell's Clutter paint pipeline makes actor-level scaling non-trivial alongside D2D's scroll container. Currently, D2D's default behavior (scroll or fixed size) applies. Currently if "Fixed Icon Size (Scrollable Dock)" is enabled, the overflowing icons stay visible instead of otherwise masked in vanilla D2D. Deferred for a future contributor. Workaround: It is recommended to disable "Fixed Icon Size (Scrollable Dock)" option in Dash to Dock settings.
+
+<!-- **Frosted glass blur does not clip to dock border radius**
+When using Blur My Shell, the blur film underneath the dock pill does not respect the dock's border radius — square corners bleed out from behind the rounded pill. This requires deep integration with BMS's compositor pipeline and is deferred for a future contributor. -->
+
+**Dock sometimes visible during fullscreen with missing icons**
+In certain fullscreen scenarios (particularly when switching workspaces mid-game), the dock pill may appear without icons due to compositor z-order conflicts between the fullscreen surface and the dock actor tree. macOS hides the dock entirely in fullscreen; this behavior is partially enforced but not bulletproof in all compositor states.
+
+---
+
+## 🤝 Credits
+
+Dash Cupertinisator is a heavily modernized fork of **Dash Animator** by [icedman](https://github.com/icedman), ported to GNOME 45+ and extended with theming, badge support, CAMLE integration, and multi-position dock support.
+
+Thanks to the GNOME and Dash to Dock communities for the foundation this is all built on.
 
 ---
 
 ## 📜 License
-GPL-3.0 License. See `LICENSE` for details.
+
+GPL-2.0-or-later. See `LICENSE` for details.
