@@ -21,7 +21,7 @@ Badges hook directly into the GNOME message tray rather than polling. They scale
 App labels use LERP-smoothed tracking to follow magnified icons without jitter or lag.
 
 ### Magic Lamp Integration
-Dash Cupertinisator includes a one-click patcher for the [Compiz-alike Magic Lamp Effect](https://github.com/hermes83/compiz-alike-magic-lamp-effect). The patch prevents minimizing windows from slithering under the dock, and adds bilinear texture filtering to smooth out minimize effect's jagginess.
+Dash Cupertinisator includes a one-click patcher for the [Compiz-alike Magic Lamp Effect](https://github.com/hermes83/compiz-alike-magic-lamp-effect). The patch prevents minimizing windows from slithering below the gap between the dock and the screen edge, and adds bilinear texture filtering to smooth out minimize effect's jagginess.
 
 ---
 
