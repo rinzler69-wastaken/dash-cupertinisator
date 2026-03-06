@@ -26,16 +26,19 @@ High-fidelity, event-driven badges that hook directly into the GNOME message tra
 ## 🎨 Advanced Aesthetics
 
 ### 💎 Premium Theme Overrides
-Native, hand-crafted "Big Sur" and "Mojave" styles.
-- **Frosted Glass**: Signature translucent backgrounds with vibrant saturation. For true Frosted Glass look, please install Blur My Shell GNOME Extension.
-- **Floating Pill**: Modern floating design with refined border radii.
+- **Robust Theme Overrides**: Native, hand-crafted "Big Sur" and "Mojave" styles. Selectable through the extension settings, overrides Dash to Dock's original dock styling.
+- **Floating Pill**: (BIG SUR Dock Style) Modern floating design with refined border radii.
+- **Flush Dock**: (MOJAVE Dock Style) A classic, flush design that sits securely against the screen edge.
 - **Theme Guard**: Automatically handles CSS alias expansion to ensure consistent styling regardless of Dash to Dock's internal toggles.
+
+> **Notes**: - For the Frosted Glass look on your dock, please install [Blur My Shell](https://github.com/aunetx/blur-my-shell).
+> - For a more faithful icon look, please use either of these iconpacks: [OS Catalina Icons](https://github.com/zayronxio/Os-Catalina-icons), for **Mojave** dock style, or [WhiteSur Icon Theme](https://github.com/vinceliuice/WhiteSur-icon-theme), for **Big Sur** dock style.
 
 ---
 
 ## 🧞 Magic Lamp Integration
 We love the [Compiz-alike Magic Lamp Effect](https://github.com/hermes83/compiz-alike-magic-lamp-effect). 
-Dash Cupertinisator includes **one-click patch** to ensure the Magic Lamp animation perfectly originates from and returns to our magnified dock icons. No more minimising windows slithering under the dock. BONUS: We also added Bilinear Texture Filtering to the Magic Lamp effect to mitigate jagginess.
+Dash Cupertinisator includes **one-click patch** to ensure minimising windows no longer slither under the dock, and an especially **sweet** addition of Bilinear Texture Filtering to the Magic Lamp effect to mitigate jagginess.
 
 ---
 
