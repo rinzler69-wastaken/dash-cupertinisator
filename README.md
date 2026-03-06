@@ -28,22 +28,24 @@ High-fidelity, event-driven badges that hook directly into the GNOME message tra
 
 ### 💎 Premium Theme Overrides
 Native, hand-crafted "Big Sur" and "Mojave" styles.
-- **Frosted Glass**: Signature translucent backgrounds with vibrant saturation.
+- **Frosted Glass**: Signature translucent backgrounds with vibrant saturation. For true Frosted Glass look, please install Blur My Shell GNOME Extension.
 - **Floating Pill**: Modern floating design with refined border radii.
 - **Theme Guard**: Automatically handles CSS alias expansion to ensure consistent styling regardless of Dash to Dock's internal toggles.
 
 ---
 
 ## 🧞 Magic Lamp Integration
-We love the [Compiz-alike Magic Lamp Effect](https://github.com/hermes82/MagicLampEffect). 
-Dash Cupertinisator includes **one-click patch** to ensure the Magic Lamp animation perfectly originates from and returns to our magnified dock icons. No more minimising windows slithering under the dock. BONUS: We also added Bilinear Texture Filtering to the Magic Lamp effect to prevent pixelation.
+We love the [Compiz-alike Magic Lamp Effect](https://github.com/hermes83/compiz-alike-magic-lamp-effect). 
+Dash Cupertinisator includes **one-click patch** to ensure the Magic Lamp animation perfectly originates from and returns to our magnified dock icons. No more minimising windows slithering under the dock. BONUS: We also added Bilinear Texture Filtering to the Magic Lamp effect to mitigate jagginess.
 
 ---
 
 ## 🚀 Installation
 
 1. **Prerequisites**: Ensure you have [Dash to Dock](https://github.com/micheleg/dash-to-dock) or [Ubuntu Dock](https://github.com/micheleg/dash-to-dock) installed and enabled. 
-   **Recommended**: Install [Magic Lamp Effect](https://github.com/hermes83/compiz-alike-magic-lamp-effect) for the Magic Lamp window animations, and seeing our patch in action!
+   **Recommended**: 
+   - Install [Magic Lamp Effect](https://github.com/hermes83/compiz-alike-magic-lamp-effect) for the Magic Lamp window animations, and seeing our patcher in action!
+   - Install [Blur My Shell](https://github.com/aunetx/blur-my-shell) for the Frosted Glass look on the Dock.
 
 2. **Clone & Install**:
    ```bash
