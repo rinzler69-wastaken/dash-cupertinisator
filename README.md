@@ -19,7 +19,6 @@ High-fidelity, event-driven badges that hook directly into the GNOME message tra
 
 ### 📐 Pixel-Perfect Precision
 - **Adaptive Tooltips**: App labels use LERP-smoothed tracking to follow magnified icons without jitter.
-- **Dynamic Separators**: Intelligent spacing that automatically bridges the gap between static icons and active miniature previews.
 - **Sync Architecture**: Icons, dots, and badges remain perfectly aligned even during rapid cursor sweeps.
 
 ---
