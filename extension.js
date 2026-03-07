@@ -124,23 +124,16 @@ export default class DashAnimatorExtension extends Extension {
     this._displayEvents.push(global.display.connect('in-fullscreen-changed', this._onFullScreen.bind(this)));
 
     this._windowEvents = [];
-    this._windowEvents.push(global.window_manager.connect('minimize', (wm, actor) => {
-      if (this.enable_miniatures && this.animator) this.animator.addMiniature(actor.get_meta_window());
-    }));
-    this._windowEvents.push(global.window_manager.connect('unminimize', (wm, actor) => {
-      if (this.enable_miniatures && this.animator) this.animator.removeMiniature(actor.get_meta_window());
-    }));
+
 
     this.animator.enable();
     this._connectThemeSettings();
-    this._connectD2DGuards();
   }
 
   _doDisable() {
     if (!this.running) return;
     this.running = false;
 
-    this._disconnectD2DGuards();
     this._disconnectThemeSettings();
     if (this.animator) this.animator.disable();
 
@@ -220,7 +213,7 @@ export default class DashAnimatorExtension extends Extension {
     this.animation_magnify = this._settings.get_double('animation-magnify');
     this.animation_spread = this._settings.get_double('animation-spread');
     this.animation_rise = this._settings.get_double('animation-rise');
-    this.enable_miniatures = this._settings.get_boolean('enable-miniatures');
+
     this.enable_magnification = this._settings.get_boolean('enable-magnification');
     this.jump_height = this._settings.get_double('jump-height');
     this.jump_speed = this._settings.get_double('jump-speed');
@@ -663,51 +656,5 @@ export default class DashAnimatorExtension extends Extension {
       this._desktopSettings = null;
     }
     this._removeThemeOverride();
-  }
-
-  // ── D2D Guards ──────────────────────────────────────────────────────────
-
-  _connectD2DGuards() {
-    // Guards ensure Dash to Dock settings don't conflict with Cupertinisator
-    // We forcefully disable D2D badges so they don't double up with ours
-    const d2d = this._getD2DSettings();
-    if (!d2d) return;
-    this._d2dSettings = d2d;
-
-    const guardOff = (key, msg) => d2d.connect(`changed::${key}`, () => {
-      if (d2d.get_boolean(key)) {
-        d2d.set_boolean(key, false);
-        Main.notify('Cupertinisator', msg);
-      }
-    });
-
-    const guardOn = (key, msg) => d2d.connect(`changed::${key}`, () => {
-      if (!d2d.get_boolean(key)) {
-        d2d.set_boolean(key, true);
-        Main.notify('Cupertinisator', msg);
-      }
-    });
-
-    // Forcefully disable D2D badges immediately on connect
-    if (d2d.get_boolean('show-icons-emblems')) d2d.set_boolean('show-icons-emblems', false);
-    if (d2d.get_boolean('show-icons-notifications-counter')) d2d.set_boolean('show-icons-notifications-counter', false);
-
-    this._d2dGuardIds = [
-      guardOn('custom-theme-shrink', 'Shrink the Dock must stay enabled for macOS theming.'),
-      guardOff('dock-fixed', 'Panel Mode is not compatible with macOS theming.'),
-      guardOff('apply-custom-theme', 'Built-in theme must stay off — Cupertinisator manages dock styling.'),
-      guardOff('extend-height', 'Extend to Edges is not compatible with macOS theming.'),
-      guardOff('custom-background-color', 'Custom dash color must stay off — Cupertinisator manages dock colours.'),
-      guardOff('show-icons-emblems', 'Dash to Dock badges suppressed while Cupertinisator is active.'),
-      guardOff('show-icons-notifications-counter', 'Dash to Dock badges suppressed while Cupertinisator is active.'),
-    ];
-  }
-
-  _disconnectD2DGuards() {
-    if (this._d2dSettings && this._d2dGuardIds) {
-      this._d2dGuardIds.forEach(id => this._d2dSettings.disconnect(id));
-    }
-    this._d2dGuardIds = null;
-    this._d2dSettings = null;
   }
 }

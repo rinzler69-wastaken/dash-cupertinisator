@@ -3,7 +3,7 @@ import { BadgeManager } from './badge.js';
 import St from 'gi://St';
 import Graphene from 'gi://Graphene';
 import Shell from 'gi://Shell';
-import Meta from 'gi://Meta';
+
 
 import { setTimeout, setInterval, clearInterval, clearTimeout } from './utils.js';
 
@@ -30,8 +30,7 @@ export class Animator {
   constructor() {
     this._enabled = false;
     this.animationInterval = ANIM_INTERVAL;
-    this._miniatures = [];
-    this._miniatureBins = [];
+
     this._separator = null;
   }
 
@@ -125,10 +124,7 @@ export class Animator {
       this._countSettingId = null;
     }
     this._dots = [];
-    this._miniatures.forEach(m => m.destroy());
-    this._miniatures = [];
-    this._miniatureBins.forEach(bin => bin.destroy());
-    this._miniatureBins = [];
+
     if (this._separator) {
       this._separator.destroy();
       this._separator = null;
@@ -145,7 +141,7 @@ export class Animator {
     if (this._iconsContainer) {
       let children = this._iconsContainer.get_children();
       children.forEach(c => {
-        if (c.name !== 'miniature-preview') {
+        if (true) {
           if (c._appwell) {
             c._appwell._dashAnimatorHooked = false;
           }
@@ -185,7 +181,7 @@ export class Animator {
 
   isJumping() {
     if (!this._iconsContainer) return false;
-    let animateIcons = this._iconsContainer.get_children().filter(c => c.name !== 'miniature-preview' && c.name !== 'cupertinisator-badge');
+    let animateIcons = this._iconsContainer.get_children().filter(c => c.name !== 'cupertinisator-badge');
     return animateIcons.some(icon => {
       return (icon._clickJump !== undefined && icon._clickJump > 0) ||
         (icon._attentionJump !== undefined && icon._attentionJump > 0);
@@ -194,7 +190,7 @@ export class Animator {
 
   isMagnifying() {
     if (!this._iconsContainer) return false;
-    let animateIcons = this._iconsContainer.get_children().filter(c => c.name !== 'miniature-preview' && c.name !== 'cupertinisator-badge');
+    let animateIcons = this._iconsContainer.get_children().filter(c => c.name !== 'cupertinisator-badge');
     return animateIcons.some(icon => {
       return (icon._currentScale !== undefined && icon._currentScale > 1.6) ||
         (icon._targetScale !== undefined && icon._targetScale > 1.6);
@@ -205,123 +201,7 @@ export class Animator {
     this._preview = ANIM_PREVIEW_DURATION;
   }
 
-  _updateSeparator() {
-    if (!this.dash || !this.dash._box) return;
 
-    if (this._miniatures.length > 0) {
-      if (!this._separator) {
-        this._separator = new St.Widget({
-          style_class: 'separator',
-          important: true
-        });
-        // Try to insert before miniatures (after icons)
-        // Since we add miniatures to the END of dash._box, we find the first miniature bin
-        if (this._miniatureBins.length > 0) {
-          this.dash._box.insert_child_below(this._separator, this._miniatureBins[0]);
-        } else {
-          this.dash._box.add_child(this._separator);
-        }
-      }
-
-      // Update separator size based on orientation
-      let iconSize = this.dash.iconSize * (this.extension.scale || 1.0);
-      let position = this.dashContainer._position;
-      if (position === 0 || position === 2) { // Horizontal
-        this._separator.set_size(2, iconSize);
-      } else { // Vertical
-        this._separator.set_size(iconSize, 2);
-      }
-    } else if (this._separator) {
-      this._separator.destroy();
-      this._separator = null;
-    }
-  }
-
-  addMiniature(window) {
-    if (!this.extension || !this.dashContainer) return;
-
-    // Create a Ghost Bin to expand the dock
-    let ghostBin = new St.Bin({
-      name: 'miniature-ghost-bin',
-      width: 0,
-      height: 0,
-      visible: true
-    });
-
-    // Inject into the real dash box
-    this.dash._box.add_child(ghostBin);
-    this._miniatureBins.push(ghostBin);
-
-    // Create the miniature actor
-    let miniature = new St.Widget({
-      name: 'miniature-preview',
-      reactive: true,
-      can_focus: true
-    });
-    miniature._window = window;
-    miniature._ghostBin = ghostBin;
-    miniature._fillLevel = 0; // for liquid animation
-
-    // Use application icon since Clutter.Clone causes crashes on minimized Actor
-    let tracker = Shell.WindowTracker.get_default();
-    let app = tracker.get_window_app(window);
-    if (app) {
-      let icon = app.create_icon_texture(96);
-      miniature.add_child(icon);
-    }
-
-
-    // Add Liquid Shader
-    let effect = new Clutter.ShaderEffect();
-    effect.set_shader_source(`
-      uniform sampler2D tex;
-      uniform float fill_level;
-      void main() {
-        vec4 color = texture2D(tex, cogl_tex_coord_in[0].st);
-        float mask = step(1.0 - fill_level, 1.0 - cogl_tex_coord_in[0].t);
-        gl_FragColor = color * mask;
-      }
-    `);
-    miniature.add_effect(effect);
-    miniature._shader = effect;
-
-    this._miniatures.push(miniature);
-    this._iconsContainer.add_child(miniature);
-
-    this._updateSeparator();
-
-    miniature.connect('button-press-event', () => {
-      window.activate(global.get_current_time());
-      return Clutter.EVENT_STOP;
-    });
-
-    this._startAnimation();
-  }
-
-  removeMiniature(window) {
-    let idx = this._miniatures.findIndex(m => m._window === window);
-    if (idx !== -1) {
-      let m = this._miniatures[idx];
-      if (m._ghostBin) m._ghostBin.destroy();
-      m.destroy();
-      this._miniatures.splice(idx, 1);
-
-      let bIdx = this._miniatureBins.indexOf(m._ghostBin);
-      if (bIdx !== -1) this._miniatureBins.splice(bIdx, 1);
-    }
-    this._updateSeparator();
-    this._startAnimation();
-  }
-
-  getMiniatureGeometry(window) {
-    let m = this._miniatures.find(m => m._window === window);
-    if (m) {
-      let [x, y] = m.get_transformed_position();
-      let [w, h] = m.get_size();
-      return { x, y, width: w, height: h };
-    }
-    return null;
-  }
 
   _precreate_dots(count) {
     if (!this._dots) {
@@ -479,15 +359,9 @@ export class Animator {
       }
     });
 
-    // Also remove miniatures whose windows are gone
-    this._miniatures.forEach(m => {
-      if (!m._window || m._window.get_compositor_private() == null) {
-        this.removeMiniature(m._window);
-      }
-    });
 
-    animateIcons = this._iconsContainer.get_children().filter(c => c.name !== 'miniature-preview' && c.name !== 'cupertinisator-badge');
-    let animateMiniatures = this._iconsContainer.get_children().filter(c => c.name === 'miniature-preview');
+
+    animateIcons = this._iconsContainer.get_children().filter(c => c.name !== 'cupertinisator-badge');
 
     // Sort order only matters for magnification spread
     let cornerPos = this._get_position(this.dashContainer);
@@ -803,55 +677,7 @@ export class Animator {
       }
     });
 
-    // Handle Miniatures
-    animateMiniatures.forEach((m) => {
-      if (!m._window) return;
-      let bin = m._ghostBin;
-      if (!bin) return;
 
-      let pos = this._get_position(bin);
-      let renderX = pos[0];
-      let renderY = pos[1];
-
-      // Update Fill Animation
-      if (m._fillLevel < 1.0) {
-        m._fillLevel += 0.02;
-        if (m._fillLevel > 1.0) m._fillLevel = 1.0;
-        didAnimate = true;
-        if (m._shader) {
-          m._shader.set_uniform_value('fill_level', m._fillLevel);
-        }
-      }
-
-      if (m.get_first_child()) {
-        // center the fallback icon
-        let child = m.get_first_child();
-        let scale = iconSize / 96;
-        child.set_scale(scale, scale);
-      }
-
-      // Positioning and Sizing
-      m.set_size(iconSize, iconSize);
-      m.set_position(Math.round(renderX), Math.round(renderY));
-
-      // Route GNOME Shell window animations to this exact position safely
-      if (m._window && m._window.set_icon_geometry) {
-        let rect = new Meta.Rectangle({
-          x: Math.round(renderX),
-          y: Math.round(renderY),
-          width: iconSize,
-          height: iconSize
-        });
-        m._window.set_icon_geometry(rect);
-      }
-
-      // Update Ghost Bin for dock expansion
-      if (dock_position === 'top' || dock_position === 'bottom') {
-        bin.set_width(iconSize);
-      } else {
-        bin.set_height(iconSize);
-      }
-    });
 
     if (!this._isInFullscreen()) {
       this._iconsContainer.show();

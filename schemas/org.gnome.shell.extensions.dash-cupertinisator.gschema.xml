@@ -16,11 +16,6 @@
       <summary>Animation Rise</summary>
       <description>How high the hovered icons rise above the baseline.</description>
     </key>
-    <key name="enable-miniatures" type="b">
-      <default>false</default>
-      <summary>Enable Liquid Miniatures</summary>
-      <description>Show minimized windows as miniature previews in the dock.</description>
-    </key>
     <key name="enable-magnification" type="b">
       <default>true</default>
       <summary>Enable Magnification</summary>
