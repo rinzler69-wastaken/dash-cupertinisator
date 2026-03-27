@@ -3,7 +3,6 @@ import { BadgeManager } from './badge.js';
 import St from 'gi://St';
 import Graphene from 'gi://Graphene';
 import Shell from 'gi://Shell';
-import Cairo from 'gi://Cairo';
 
 
 import { setTimeout, setInterval, clearInterval, clearTimeout } from './utils.js';
@@ -687,43 +686,6 @@ export class Animator {
 
     if (didAnimate) {
       this._debounceEndAnimation();
-    }
-
-    // Update input region to match the visual dock bounding box
-    if (this.dashContainer && this.dashContainer.get_stage()) {
-      let [contX, contY] = this.dashContainer.get_transformed_position();
-      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-
-      animateIcons.forEach(icon => {
-        if (!icon.visible) return;
-        let box = icon.get_transformed_allocation();
-        minX = Math.min(minX, box.x1);
-        minY = Math.min(minY, box.y1);
-        maxX = Math.max(maxX, box.x2);
-        maxY = Math.max(maxY, box.y2);
-      });
-
-      if (this.dash && this.dash._background) {
-        let box = this.dash._background.get_transformed_allocation();
-        minX = Math.min(minX, box.x1);
-        minY = Math.min(minY, box.y1);
-        maxX = Math.max(maxX, box.x2);
-        maxY = Math.max(maxY, box.y2);
-      }
-
-      if (maxX > minX && maxY > minY) {
-        let region = new Cairo.Region();
-        const pad = 4;
-        region.unionRectangle({
-          x: Math.round(minX - contX - pad),
-          y: Math.round(minY - contY - pad),
-          width: Math.round(maxX - minX + pad * 2),
-          height: Math.round(maxY - minY + pad * 2)
-        });
-        this.dashContainer.set_input_region(region);
-      } else {
-        this.dashContainer.set_input_region(null);
-      }
     }
   }
 

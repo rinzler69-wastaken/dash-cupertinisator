@@ -1,0 +1,40 @@
+.
+├── animator.js
+├── assets
+│   ├── camle-extension.js
+│   ├── notification-badge.svg
+│   ├── tooltip-arrow-dark-down.svg
+│   ├── tooltip-arrow-dark-left.svg
+│   ├── tooltip-arrow-dark-right.svg
+│   ├── tooltip-arrow-dark-up.svg
+│   ├── tooltip-arrow-light-down.svg
+│   ├── tooltip-arrow-light-left.svg
+│   ├── tooltip-arrow-light-right.svg
+│   └── tooltip-arrow-light-up.svg
+├── badge.js
+├── extension.js
+├── LICENSE
+├── lint
+│   ├── eslintrc-gjs.yml
+│   └── eslintrc-shell.yml
+├── Makefile
+├── metadata.json
+├── package.json
+├── patcher.js
+├── prefs.js
+├── README.md
+├── schemas
+│   ├── gschemas.compiled
+│   └── org.gnome.shell.extensions.dash-cupertinisator.gschema.xml
+├── stylesheet.css
+├── stylesheet.tests.css
+├── themes
+│   ├── bigsur-dark.css
+│   ├── bigsur-light.css
+│   ├── mojave-dark.css
+│   ├── mojave-light.css
+│   └── stylesheet-example.css
+├── tree.txt
+└── utils.js
+
+5 directories, 33 files

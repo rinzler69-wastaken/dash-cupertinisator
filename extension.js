@@ -21,6 +21,7 @@
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import St from 'gi://St';
+import Cairo from 'gi://Cairo';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js';
@@ -174,6 +175,8 @@ export default class DashAnimatorExtension extends Extension {
       this.dashContainer._animateOut = this.dashContainer.__animateOut;
       this.dashContainer.set_reactive(false);
       this.dashContainer.set_track_hover(false);
+      if (this.dashContainer.set_input_region)
+        this.dashContainer.set_input_region(null);
       this.dashContainerEvents.forEach(id => {
         if (this.dashContainer) this.dashContainer.disconnect(id);
       });
