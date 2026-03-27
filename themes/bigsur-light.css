@@ -310,8 +310,8 @@
   padding: 0 !important;
   border-radius: 22px !important;
   spacing: 4px !important;
-  background-color: rgba(28, 28, 30, 0.72) !important;
-  border: 1.5px solid rgba(255, 255, 255, 0.15) !important;
+  background-color: rgba(242, 242, 247, 0.78) !important;
+  border: 1.5px solid rgba(34, 34, 38, 0.3) !important;
 }
 
 #dashtodockContainer.right.shrink #dash .dash-separator {
