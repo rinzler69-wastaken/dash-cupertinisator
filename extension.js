@@ -122,18 +122,22 @@ export default class DashAnimatorExtension extends Extension {
     this._displayEvents = [];
     this._displayEvents.push(global.display.connect('notify::focus-window', this._onFocusWindow.bind(this)));
     this._displayEvents.push(global.display.connect('in-fullscreen-changed', this._onFullScreen.bind(this)));
+    // Restart on monitor hotplug / project to LCD
+    this._displayEvents.push(global.display.connect('notify::n-monitors', () => this._softRestart()));
 
     this._windowEvents = [];
 
 
     this.animator.enable();
     this._connectThemeSettings();
+    this._connectD2DWatchers();
   }
 
   _doDisable() {
     if (!this.running) return;
     this.running = false;
 
+    this._disconnectD2DWatchers();
     this._disconnectThemeSettings();
     if (this.animator) this.animator.disable();
 
@@ -655,6 +659,75 @@ export default class DashAnimatorExtension extends Extension {
       this._colorSchemeId = null;
       this._desktopSettings = null;
     }
+
     this._removeThemeOverride();
   }
+
+  // ── Soft restart ─────────────────────────────────────────────────────────
+  // Used when D2D or display changes destabilize our hooks.
+  // Mirrors the screen-saver resume pattern — clean disable then re-enable.
+  _softRestart() {
+    if (this._softRestartTimer) {
+      GLib.source_remove(this._softRestartTimer);
+      this._softRestartTimer = null;
+    }
+    this._softRestartTimer = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 400, () => {
+      this._softRestartTimer = null;
+      if (!this.running) return GLib.SOURCE_REMOVE;
+      this._doDisable();
+      this._doEnable();
+      return GLib.SOURCE_REMOVE;
+    });
+  }
+  // ── D2D event watchers ───────────────────────────────────────────────────
+  // Registered separately from theme settings so we can retry until
+  // dockManager is actually ready — it may not be at initial enable time.
+
+  _connectD2DWatchers() {
+    // Retry loop — dockManager may not be ready immediately
+    const tryConnect = () => {
+      try {
+        const d2dExt = this._extensionManager.lookup(this._d2dId);
+        const d2dSettings = d2dExt?.stateObj?.dockManager?.settings;
+        if (!d2dSettings) return false;
+
+        this._d2dRestartIds = [
+          d2dSettings.connect('changed::dock-position', () => { log('[cupertinisator] dock-position changed — soft restarting'); this._softRestart(); }),
+          d2dSettings.connect('changed::intellihide', () => { log('[cupertinisator] intellihide changed — soft restarting'); this._softRestart(); }),
+          d2dSettings.connect('changed::intellihide-mode', () => { log('[cupertinisator] intellihide-mode changed — soft restarting'); this._softRestart(); }),
+          d2dSettings.connect('changed::fixed-icon-size', () => { log('[cupertinisator] fixed-icon-size changed — soft restarting'); this._softRestart(); }),
+        ];
+        this._d2dSettingsRef = d2dSettings;
+        log('[cupertinisator] D2D watchers registered');
+        return true;
+      } catch (e) {
+        log('[cupertinisator] _connectD2DWatchers error: ' + e.message);
+        return false;
+      }
+    };
+
+    if (!tryConnect()) {
+      // dockManager not ready yet — retry after a short delay
+      this._d2dWatcherRetryId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 600, () => {
+        this._d2dWatcherRetryId = null;
+        if (this.running) tryConnect();
+        return GLib.SOURCE_REMOVE;
+      });
+    }
+  }
+
+  _disconnectD2DWatchers() {
+    if (this._d2dWatcherRetryId) {
+      GLib.source_remove(this._d2dWatcherRetryId);
+      this._d2dWatcherRetryId = null;
+    }
+    if (this._d2dSettingsRef && this._d2dRestartIds) {
+      this._d2dRestartIds.forEach(id => {
+        try { this._d2dSettingsRef.disconnect(id); } catch (e) { }
+      });
+      this._d2dRestartIds = null;
+      this._d2dSettingsRef = null;
+    }
+  }
+
 }
