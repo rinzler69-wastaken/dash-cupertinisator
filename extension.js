@@ -323,7 +323,9 @@ export default class DashAnimatorExtension extends Extension {
         return;
       }
       this._isHidden = true;
-      this._startAnimation();
+      if (isStartingOrJumpingOrMagnifying()) {
+        this._startAnimation();
+      }
       this.dashContainer.__animateOut(time, delay);
     };
 
@@ -533,15 +535,26 @@ export default class DashAnimatorExtension extends Extension {
       GLib.source_remove(this._themeApplyTimeoutId);
       this._themeApplyTimeoutId = null;
     }
+    if (this._themeInTimeoutId) {
+      GLib.source_remove(this._themeInTimeoutId);
+      this._themeInTimeoutId = null;
+    }
 
     if (!this._settings.get_boolean('override-theming')) {
       const applyVanillaNow = () => {
         this._removeThemeOverride(true);
-        GLib.timeout_add(GLib.PRIORITY_DEFAULT, 150, () => {
+        if (this._themeInTimeoutId) {
+          GLib.source_remove(this._themeInTimeoutId);
+          this._themeInTimeoutId = null;
+        }
+        this._themeInTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 150, () => {
           if (this.animator) this.animator.reloadIcons();
           if (this.dashContainer && this.dashContainer._animateIn) {
             this.dashContainer._animateIn(0.2, 0); // Slide back in with vanilla theme
+            // Safety kick: re-check if it should hide again after a delay
+            this._recheckAutohide(true);
           }
+          this._themeInTimeoutId = null;
           return GLib.SOURCE_REMOVE;
         });
       };
@@ -594,11 +607,18 @@ export default class DashAnimatorExtension extends Extension {
       St.ThemeContext.get_for_stage(global.stage).emit('changed');
       log(`[cupertinisator] loaded theme: ${fileName}`);
 
-      GLib.timeout_add(GLib.PRIORITY_DEFAULT, 150, () => {
+      if (this._themeInTimeoutId) {
+        GLib.source_remove(this._themeInTimeoutId);
+        this._themeInTimeoutId = null;
+      }
+      this._themeInTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 150, () => {
         if (this.animator) this.animator.reloadIcons();
         if (this.dashContainer && this.dashContainer._animateIn) {
           this.dashContainer._animateIn(0.2, 0); // Slide back in with the fresh theme
+          // Safety kick: re-check if it should hide again after a delay
+          this._recheckAutohide(true);
         }
+        this._themeInTimeoutId = null;
         return GLib.SOURCE_REMOVE;
       });
     };
@@ -656,5 +676,49 @@ export default class DashAnimatorExtension extends Extension {
       this._desktopSettings = null;
     }
     this._removeThemeOverride();
+  }
+
+  _recheckAutohide(delayed = false) {
+    if (this._recheckTimeoutId) {
+      GLib.source_remove(this._recheckTimeoutId);
+      this._recheckTimeoutId = null;
+    }
+
+    const check = () => {
+      this._recheckTimeoutId = null;
+      if (!this.dashContainer || !this.dashContainer._animateIn || !this.dashContainer._animateOut) return;
+
+      // Detect if we should be hidden (Fullscreen or Maximized window on current monitor)
+      let monitorIndex = global.display.get_current_monitor();
+      let inFullScreen = global.display.get_monitor_in_fullscreen(monitorIndex);
+      
+      // Detect if any window is maximized on current monitor
+      let isMaxed = false;
+      try {
+        let windows = global.get_window_actors().map(a => a.meta_window).filter(w => w && w.get_monitor() === monitorIndex);
+        // Use native window properties to avoid GI enum dependency
+        isMaxed = windows.some(w => w.maximized_horizontally && w.maximized_vertically);
+      } catch (e) { }
+
+      // Forceful Safety Kick: If showing but should be hidden
+      if (!this.dashContainer._isHidden && (inFullScreen || isMaxed || this._inFullScreen)) {
+        log("[cupertinisator] Atomic Safety: Forced Hide transition after Theme swap.");
+        // We use the "Magic Reset" sequence directly here for maximum reliability
+        this.dashContainer.__animateIn(0.2, 0); 
+        GLib.timeout_add(GLib.PRIORITY_DEFAULT, 250, () => {
+          if (this.dashContainer && this.dashContainer._animateOut) {
+            this.dashContainer._animateOut(0.2, 0);
+          }
+          return GLib.SOURCE_REMOVE;
+        });
+      }
+      return GLib.SOURCE_REMOVE;
+    };
+
+    if (delayed) {
+      this._recheckTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 350, check);
+    } else {
+      check();
+    }
   }
 }
