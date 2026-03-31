@@ -605,17 +605,17 @@ export default class DashAnimatorExtension extends Extension {
       this._loadedThemeFile = fileToLoad;
 
       St.ThemeContext.get_for_stage(global.stage).emit('changed');
-      log(`[cupertinisator] Loaded theme: ${fileName}. Triggering Atomic Reload.`);
+      log(`[cupertinisator] Loaded theme: ${fileName}. Triggering Hardware Cycle.`);
 
       if (this._themeInTimeoutId) {
         GLib.source_remove(this._themeInTimeoutId);
         this._themeInTimeoutId = null;
       }
       
-      // Perform the Atomic Reset to clear Dash-to-Dock voodoo state
-      this._atomicResetD2D();
+      // Perform the Hard Toggle to clear Dash-to-Dock voodoo state
+      this._deepCycleD2D();
 
-      this._themeInTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 150, () => {
+      this._themeInTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1000, () => {
         if (this.animator) this.animator.reloadIcons();
         if (this.dashContainer && this.dashContainer._animateIn) {
           this.dashContainer._animateIn(0.2, 0); 
@@ -626,35 +626,33 @@ export default class DashAnimatorExtension extends Extension {
       });
     };
 
-    if (this.dashContainer && this.dashContainer._animateOut && !this.dashContainer._isHidden) {
-      this.dashContainer._animateOut(0.2, 0); 
-
-      this._themeApplyTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 250, () => {
-        applyThemeNow();
-        this._themeApplyTimeoutId = null;
-        return GLib.SOURCE_REMOVE;
-      });
-    } else {
-      applyThemeNow();
-    }
+    applyThemeNow();
   }
 
-  _atomicResetD2D() {
+  _deepCycleD2D() {
     try {
-      // 1. Locate D2D
-      let d2d = Main.extensionManager.lookup(D2D_UUID);
-      if (d2d && d2d.instance && d2d.instance._reset) {
-         log("[cupertinisator] Atomic: Driving D2D internal reset.");
-         d2d.instance._reset();
-      }
+      log("[cupertinisator] Hardware: Cycling D2D Extension.");
       
-      // 2. Cycle our own extension to re-link to new D2D actors
-      log("[cupertinisator] Atomic: Refreshing local hooks.");
+      // 1. Detach our own hooks first to avoid processing orphans
       this._doDisable();
-      this._doEnable();
+
+      // 2. Full Disable
+      this._extensionManager.disableExtension(this._d2dId);
+
+      // 3. Wait for Shell to clear actors, then Re-Enable
+      GLib.timeout_add(GLib.PRIORITY_DEFAULT, 500, () => {
+          this._extensionManager.enableExtension(this._d2dId);
+          
+          // 4. Final settling delay before we re-attach our engine
+          GLib.timeout_add(GLib.PRIORITY_DEFAULT, 350, () => {
+              this._checkDashToDock();
+              return GLib.SOURCE_REMOVE;
+          });
+          return GLib.SOURCE_REMOVE;
+      });
       
     } catch (e) {
-      log(`[cupertinisator] Atomic Reset error: ${e}`);
+      log(`[cupertinisator] Hardware Cycle error: ${e}`);
     }
   }
 

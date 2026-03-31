@@ -1,3 +1,4 @@
+import GLib from 'gi://GLib';
 import Adw from 'gi://Adw';
 import Gtk from 'gi://Gtk';
 import { ExtensionPreferences } from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
@@ -144,6 +145,11 @@ export default class DashAnimatorPreferences extends ExtensionPreferences {
             valign: Gtk.Align.CENTER,
             css_classes: ['linked'],
         });
+        const themeSpinner = new Adw.Spinner({
+            valign: Gtk.Align.CENTER,
+            margin_start: 12,
+        });
+        themeSpinner.visible = false;
         const mojaveBtn = new Gtk.ToggleButton({ label: 'Mojave' });
         const bigsurBtn = new Gtk.ToggleButton({ label: 'Big Sur', group: mojaveBtn });
         themeBox.append(mojaveBtn);
@@ -154,10 +160,24 @@ export default class DashAnimatorPreferences extends ExtensionPreferences {
             bigsurBtn.active = val === 'bigsur';
         };
         syncThemeButtons();
-        mojaveBtn.connect('toggled', () => { if (mojaveBtn.active) settings.set_string('dock-theme', 'mojave'); });
-        bigsurBtn.connect('toggled', () => { if (bigsurBtn.active) settings.set_string('dock-theme', 'bigsur'); });
-        settings.connect('changed::dock-theme', syncThemeButtons);
+        mojaveBtn.connect('toggled', () => { 
+            if (mojaveBtn.active) settings.set_string('dock-theme', 'mojave'); 
+        });
+        bigsurBtn.connect('toggled', () => { 
+            if (bigsurBtn.active) settings.set_string('dock-theme', 'bigsur'); 
+        });
+        settings.connect('changed::dock-theme', () => {
+            syncThemeButtons();
+            themeSpinner.visible = true;
+            themeSpinner.start();
+            GLib.timeout_add(GLib.PRIORITY_DEFAULT, 2000, () => {
+                themeSpinner.stop();
+                themeSpinner.visible = false;
+                return GLib.SOURCE_REMOVE;
+            });
+        });
         themeRow.add_suffix(themeBox);
+        themeRow.add_suffix(themeSpinner);
         themeStyleGroup.add(themeRow);
 
         const colorGroup = new Adw.PreferencesGroup({ title: 'Color Scheme' });
@@ -179,6 +199,11 @@ export default class DashAnimatorPreferences extends ExtensionPreferences {
             valign: Gtk.Align.CENTER,
             css_classes: ['linked'],
         });
+        const colorSpinner = new Adw.Spinner({
+            valign: Gtk.Align.CENTER,
+            margin_start: 12,
+        });
+        colorSpinner.visible = false;
         const lightBtn = new Gtk.ToggleButton({ label: 'Light' });
         const darkBtn = new Gtk.ToggleButton({ label: 'Dark', group: lightBtn });
         colorBox.append(lightBtn);
@@ -189,10 +214,24 @@ export default class DashAnimatorPreferences extends ExtensionPreferences {
             darkBtn.active = val === 'dark';
         };
         syncColorButtons();
-        lightBtn.connect('toggled', () => { if (lightBtn.active) settings.set_string('dock-color-scheme', 'light'); });
-        darkBtn.connect('toggled', () => { if (darkBtn.active) settings.set_string('dock-color-scheme', 'dark'); });
-        settings.connect('changed::dock-color-scheme', syncColorButtons);
+        lightBtn.connect('toggled', () => { 
+            if (lightBtn.active) settings.set_string('dock-color-scheme', 'light'); 
+        });
+        darkBtn.connect('toggled', () => { 
+            if (darkBtn.active) settings.set_string('dock-color-scheme', 'dark'); 
+        });
+        settings.connect('changed::dock-color-scheme', () => {
+            syncColorButtons();
+            colorSpinner.visible = true;
+            colorSpinner.start();
+            GLib.timeout_add(GLib.PRIORITY_DEFAULT, 2000, () => {
+                colorSpinner.stop();
+                colorSpinner.visible = false;
+                return GLib.SOURCE_REMOVE;
+            });
+        });
         colorRow.add_suffix(colorBox);
+        colorRow.add_suffix(colorSpinner);
         colorGroup.add(colorRow);
 
         const updateColorSensitivity = () => { colorRow.sensitive = !settings.get_boolean('theme-aware'); };
