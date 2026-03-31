@@ -381,7 +381,7 @@ export class Animator {
       let bin = icon._bin;
       let pos = this._get_position(bin);
 
-      if (bin.first_child) bin.first_child.opacity = this.extension._isHidden ? 255 : 0;
+      if (bin.first_child) bin.first_child.opacity = 0;
       icon.set_size(iconSize, iconSize);
 
       if (!icon.first_child && bin.first_child) {

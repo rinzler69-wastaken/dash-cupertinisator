@@ -290,18 +290,21 @@ export default class DashAnimatorExtension extends Extension {
 
     this.dashContainer._animateIn = (time, delay) => {
       // Clones become visible — opacity handled per-icon in _animate()
-      this._startAnimation();
+      if (this.animator) {
+        this.animator.showAll();
+        this._startAnimation();
+      }
       this.dashContainer.__animateIn(time, delay);
     };
 
     this.dashContainer._animateOut = (time, delay) => {
       // Restore real icon opacity before dock slides away so D2D's
       // slide-out animation shows the real icons, not transparent holes
-      let icons = this._findIcons();
-      icons.forEach((c) => {
-        if (c._bin && c._bin.first_child)
-          c._bin.first_child.opacity = 255;
-      });
+      if (this.animator) {
+        this.animator._endAnimation();
+        this.animator._restoreIcons();
+        this.animator.hideAll();
+      }
       this.dashContainer.__animateOut(time, delay);
     };
 
@@ -310,7 +313,8 @@ export default class DashAnimatorExtension extends Extension {
     Object.defineProperty(this, '_isHidden', {
       get: () => {
         const s = this.dashContainer?._dockState;
-        return s === 0 || s === 3; // HIDDEN or HIDING
+        // HIDDEN=0, HIDING=3. Treat both as hidden to sync clones immediately.
+        return s === 0 || s === 3;
       },
       set: (_) => { },
       configurable: true,
@@ -535,8 +539,9 @@ export default class DashAnimatorExtension extends Extension {
         });
       };
 
-      if (this.dashContainer && this.dashContainer._animateOut && !this.dashContainer._isHidden && this._loadedThemeFile) {
-        this.dashContainer._animateOut(0.2, 0); // Slide out before stripping
+      const s = this.dashContainer?._dockState;
+      if (this.dashContainer && this.dashContainer._animateOut && s !== 0 && this._loadedThemeFile) {
+        if (s !== 3) this.dashContainer._animateOut(0.2, 0);
         this._themeApplyTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 250, () => {
           applyVanillaNow();
           this._themeApplyTimeoutId = null;
@@ -592,8 +597,9 @@ export default class DashAnimatorExtension extends Extension {
       });
     };
 
-    if (this.dashContainer && this.dashContainer._animateOut && !this.dashContainer._isHidden) {
-      this.dashContainer._animateOut(0.2, 0); // Slide out
+    const s = this.dashContainer?._dockState;
+    if (this.dashContainer && this.dashContainer._animateOut && s !== 0) {
+      if (s !== 3) this.dashContainer._animateOut(0.2, 0);
 
       this._themeApplyTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 250, () => {
         applyThemeNow();
