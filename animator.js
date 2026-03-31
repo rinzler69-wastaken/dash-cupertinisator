@@ -189,6 +189,7 @@ export class Animator {
   }
 
   isMagnifying() {
+    if (this.extension && this.extension.enable_magnification === false) return false;
     if (!this._iconsContainer) return false;
     let animateIcons = this._iconsContainer.get_children().filter(c => c.name !== 'cupertinisator-badge');
     return animateIcons.some(icon => {
@@ -380,7 +381,7 @@ export class Animator {
       let bin = icon._bin;
       let pos = this._get_position(bin);
 
-      if (bin.first_child) bin.first_child.opacity = 0;
+      if (bin.first_child) bin.first_child.opacity = this.extension._isHidden ? 255 : 0;
       icon.set_size(iconSize, iconSize);
 
       if (!icon.first_child && bin.first_child) {
@@ -402,8 +403,8 @@ export class Animator {
             if (app && app.get_n_windows() === 0) {
               icon._clickJump = 1.0;
               this._startAnimation();
-              if (this.dashContainer && this.dashContainer._animateIn)
-                this.dashContainer._animateIn(0.2, 0);
+              // Do NOT call _animateIn here — if the dock is hidden, the bounce
+              // plays invisibly. The dock shows when the app window actually appears.
             }
           });
           // urgent signal — _appwell IS the AppIcon, urgent is directly on it
@@ -413,8 +414,10 @@ export class Animator {
               icon._attentionJump = 1.0;
               icon._urgentPending = true;
               this._startAnimation();
-              if (this.dashContainer && this.dashContainer._animateIn)
-                this.dashContainer._animateIn(0.2, 0);
+              // Urgent is the one case we show the dock — user must see it.
+              // Route through _updateDashVisibility so intellihide stays in control.
+              if (this.dashContainer && typeof this.dashContainer._updateDashVisibility === 'function')
+                this.dashContainer._updateDashVisibility();
             }
             if (!icon._appwell.urgent)
               icon._urgentPending = false;
@@ -526,6 +529,10 @@ export class Animator {
       icon.visible = !isNaN(pos[0]);
       if (!icon.visible) return;
 
+      // Per-icon opacity: 0 when dock is hidden/hiding so bounces don't bleed
+      // through the bottom of the screen. Clones tick silently at opacity 0.
+      icon.opacity = this.extension._isHidden ? 0 : 255;
+
       icon.set_scale(1, 1);
 
       let _scale_coef = nearestIcon ? ANIM_SCALE_COEF : ANIM_SCALE_COEF * ANIM_ON_LEAVE_COEF;
@@ -540,14 +547,20 @@ export class Animator {
       icon._currentScale = scale;
 
       let jX = 0, jY = 0;
+      // Only apply jump offsets when dock is visible — when hidden, the clone
+      // sits at screen bottom and would poke through. Let it tick silently.
+      const dockVisible = !this.extension._isHidden;
+
       if (icon._clickJump > 0) {
         let jumpHeight = this.extension.jump_height || 0.85;
         let jumpSpeed = this.extension.jump_speed || 1.0;
-        let jumpOffset = Math.sin(icon._clickJump * Math.PI) * iconSize * ANIM_ICON_RAISE * scaleFactor * 1.65 * jumpHeight;
-        if (dock_position === 'bottom') jY = -jumpOffset;
-        else if (dock_position === 'top') jY = jumpOffset;
-        else if (dock_position === 'left') jX = jumpOffset;
-        else if (dock_position === 'right') jX = -jumpOffset;
+        if (dockVisible) {
+          let jumpOffset = Math.sin(icon._clickJump * Math.PI) * iconSize * ANIM_ICON_RAISE * scaleFactor * 1.65 * jumpHeight;
+          if (dock_position === 'bottom') jY = -jumpOffset;
+          else if (dock_position === 'top') jY = jumpOffset;
+          else if (dock_position === 'left') jX = jumpOffset;
+          else if (dock_position === 'right') jX = -jumpOffset;
+        }
         icon._clickJump -= 0.0275 * jumpSpeed;
         if (icon._clickJump < 0) icon._clickJump = 0;
         didAnimate = true;
@@ -557,23 +570,20 @@ export class Animator {
       if (isStarting && (!icon._clickJump || icon._clickJump <= 0)) {
         icon._clickJump = 1.0;
         didAnimate = true;
-        if (this.dashContainer && this.dashContainer._animateIn)
-          this.dashContainer._animateIn(0.2, 0);
+        // Do NOT call _animateIn — dock stays hidden if it was hidden.
+        // The bounce ticks silently. Original sin fixed.
       }
 
-      // Attention bounce — own track, never touches _clickJump or isJumping() was previously.
-      // Uses appIcon.urgent boolean D2D already maintains — no get_windows() needed.
+      // Attention bounce — urgent notifications DO show the dock (user must see these).
       if (icon._appwell && icon._appwell.urgent) {
         if (!(icon._attentionJump > 0)) {
           icon._attentionCooldown = (icon._attentionCooldown || 0) - 1;
           if (icon._attentionCooldown <= 0) {
             icon._attentionJump = 1.0;
             icon._attentionCooldown = 60;
-            // Force dock visible when attention bounce fires
-            if (this.dashContainer && this.dashContainer._animateIn)
-              this.dashContainer._animateIn(0.2, 0);
-            if (this.dashContainer && this.dashContainer._animateIn)
-              this.dashContainer._animateIn(0.2, 0);
+            // Urgent: nudge D2D to re-evaluate rather than forcing animateIn.
+            if (this.dashContainer && typeof this.dashContainer._updateDashVisibility === 'function')
+              this.dashContainer._updateDashVisibility();
           }
         }
       } else {
@@ -582,11 +592,13 @@ export class Animator {
       if (icon._attentionJump > 0) {
         let jh = this.extension.jump_height || 0.85;
         let js = this.extension.jump_speed || 1.0;
-        let off = Math.sin(icon._attentionJump * Math.PI) * iconSize * ANIM_ICON_RAISE * scaleFactor * 1.65 * jh;
-        if (dock_position === 'bottom') jY = -off;
-        else if (dock_position === 'top') jY = off;
-        else if (dock_position === 'left') jX = off;
-        else if (dock_position === 'right') jX = -off;
+        if (dockVisible) {
+          let off = Math.sin(icon._attentionJump * Math.PI) * iconSize * ANIM_ICON_RAISE * scaleFactor * 1.65 * jh;
+          if (dock_position === 'bottom') jY = -off;
+          else if (dock_position === 'top') jY = off;
+          else if (dock_position === 'left') jX = off;
+          else if (dock_position === 'right') jX = -off;
+        }
         icon._attentionJump -= 0.0275 * js;
         if (icon._attentionJump < 0) icon._attentionJump = 0;
         didAnimate = true;
@@ -680,6 +692,10 @@ export class Animator {
 
 
     if (!this._isInFullscreen()) {
+      // Keep containers always visible — icon opacity handles clone visibility.
+      // Per-icon opacity=0 when hidden means bounces tick silently with no
+      // visual bleed-through. Container hide/show caused premature blink on
+      // slide-out and fought with D2D's own show/hide sequencing.
       this._iconsContainer.show();
       this._dotsContainer.show();
     }

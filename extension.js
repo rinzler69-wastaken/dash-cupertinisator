@@ -150,10 +150,6 @@ export default class DashAnimatorExtension extends Extension {
       clearInterval(this._oneShotId);
       this._oneShotId = null;
     }
-    if (this._jumpHideTimer) {
-      clearInterval(this._jumpHideTimer);
-      this._jumpHideTimer = null;
-    }
 
     if (this._windowEvents) {
       this._windowEvents.forEach(id => global.window_manager.disconnect(id));
@@ -285,47 +281,40 @@ export default class DashAnimatorExtension extends Extension {
       })
     );
 
-    // hooks
+    // hooks — c12r owns clone visibility only, D2D owns all hide/show decisions.
+    // Any _animateIn call from c12r fights intellihide's debounce and resets its
+    // state, causing the dock to get stuck open. So we never call _animateIn
+    // for any reason (launches, bounces, theme swaps) — D2D decides.
     this.dashContainer.__animateIn = this.dashContainer._animateIn;
     this.dashContainer.__animateOut = this.dashContainer._animateOut;
 
     this.dashContainer._animateIn = (time, delay) => {
-      if (this._jumpHideTimer) {
-        clearInterval(this._jumpHideTimer);
-        this._jumpHideTimer = null;
-      }
-      this._isHidden = false;
+      // Clones become visible — opacity handled per-icon in _animate()
       this._startAnimation();
       this.dashContainer.__animateIn(time, delay);
     };
+
     this.dashContainer._animateOut = (time, delay) => {
-      // Block hide if bouncing OR if any app is still launching (STARTING)
-      const isStartingOrJumpingOrMagnifying = () => {
-        if (this.animator && this.animator.isJumping()) return true;
-        if (this.animator && typeof this.animator.isMagnifying === 'function' && this.animator.isMagnifying()) return true;
-        return false;
-      };
-      if (isStartingOrJumpingOrMagnifying()) {
-        this.dashContainer.__animateIn(0.2, 0);
-        if (this._jumpHideTimer) clearInterval(this._jumpHideTimer);
-        this._jumpHideTimer = setInterval(() => {
-          if (!isStartingOrJumpingOrMagnifying()) {
-            clearInterval(this._jumpHideTimer);
-            this._jumpHideTimer = null;
-            if (this._isHidden) {
-              // Was already hidden, don't re-trigger
-            } else {
-              this._isHidden = true;
-              this.dashContainer.__animateOut(time, delay);
-            }
-          }
-        }, 100);
-        return;
-      }
-      this._isHidden = true;
-      this._startAnimation();
+      // Restore real icon opacity before dock slides away so D2D's
+      // slide-out animation shows the real icons, not transparent holes
+      let icons = this._findIcons();
+      icons.forEach((c) => {
+        if (c._bin && c._bin.first_child)
+          c._bin.first_child.opacity = 255;
+      });
       this.dashContainer.__animateOut(time, delay);
     };
+
+    // Live getter over D2D's _dockState — never manually set.
+    // State enum: HIDDEN=0, SHOWING=1, SHOWN=2, HIDING=3.
+    Object.defineProperty(this, '_isHidden', {
+      get: () => {
+        const s = this.dashContainer?._dockState;
+        return s === 0 || s === 3; // HIDDEN or HIDING
+      },
+      set: (_) => { },
+      configurable: true,
+    });
 
     this.animator._animate();
     return true;
@@ -539,9 +528,9 @@ export default class DashAnimatorExtension extends Extension {
         this._removeThemeOverride(true);
         GLib.timeout_add(GLib.PRIORITY_DEFAULT, 150, () => {
           if (this.animator) this.animator.reloadIcons();
-          if (this.dashContainer && this.dashContainer._animateIn) {
-            this.dashContainer._animateIn(0.2, 0); // Slide back in with vanilla theme
-          }
+          // Let D2D decide show/hide — never call _animateIn from c12r.
+          if (this.dashContainer && typeof this.dashContainer._updateDashVisibility === 'function')
+            this.dashContainer._updateDashVisibility();
           return GLib.SOURCE_REMOVE;
         });
       };
@@ -596,9 +585,9 @@ export default class DashAnimatorExtension extends Extension {
 
       GLib.timeout_add(GLib.PRIORITY_DEFAULT, 150, () => {
         if (this.animator) this.animator.reloadIcons();
-        if (this.dashContainer && this.dashContainer._animateIn) {
-          this.dashContainer._animateIn(0.2, 0); // Slide back in with the fresh theme
-        }
+        // Let D2D decide show/hide — never call _animateIn from c12r.
+        if (this.dashContainer && typeof this.dashContainer._updateDashVisibility === 'function')
+          this.dashContainer._updateDashVisibility();
         return GLib.SOURCE_REMOVE;
       });
     };
