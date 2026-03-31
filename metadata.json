@@ -9,12 +9,13 @@
     "46",
     "47",
     "48",
-    "49"
+    "49",
+    "50"
   ],
   "url": "https://github.com/rinzler69-wastaken/dash-cupertinisator",
   "uuid": "dash-cupertinisator@rinzler69-wastaken.github.com",
   "schema-id": "org.gnome.shell.extensions.dash-cupertinisator",
   "gettext-domain": "dash-cupertinisator",
   "settings-schema": "org.gnome.shell.extensions.dash-cupertinisator",
-  "version": 1.0
+  "version": 1.1
 }
