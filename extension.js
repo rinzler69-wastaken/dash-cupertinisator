@@ -39,6 +39,7 @@ export default class DashAnimatorExtension extends Extension {
     this._d2dId = 'dash-to-dock@micxgx.gmail.com';
 
     this._extensionStateChangedId = this._extensionManager.connect('extension-state-changed', (em, ext) => {
+      if (this._isCycling) return; // Lock: Ignore external signals during a manual toggle cycle
       if (ext.uuid === this._d2dId) {
         this._checkDashToDock();
       }
@@ -624,15 +625,6 @@ export default class DashAnimatorExtension extends Extension {
       if (!this._isInitializing) {
         log("[cupertinisator] Theme changed manually. Triggering Hardware Cycle.");
         this._deepCycleD2D();
-        this._themeInTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1000, () => {
-          if (this.animator) this.animator.reloadIcons();
-          if (this.dashContainer && this.dashContainer._animateIn) {
-            this.dashContainer._animateIn(0.2, 0); 
-            this._recheckAutohide(true);
-          }
-          this._themeInTimeoutId = null;
-          return GLib.SOURCE_REMOVE;
-        });
       } else {
         log("[cupertinisator] Initialization: Skipping Hardware Cycle for startup theme application.");
         if (this.animator) this.animator.reloadIcons();
@@ -646,25 +638,43 @@ export default class DashAnimatorExtension extends Extension {
     try {
       log("[cupertinisator] Hardware: Cycling D2D Extension.");
       
-      // 1. Detach our own hooks first to avoid processing orphans
+      // 1. Set Locks and notify UI
+      this._isCycling = true;
+      this._settings.set_boolean('is-refreshing', true);
+
+      // 2. Detach our own hooks first
       this._doDisable();
 
-      // 2. Full Disable
+      // 3. Full Disable
       this._extensionManager.disableExtension(this._d2dId);
 
-      // 3. Wait for Shell to clear actors, then Re-Enable
-      GLib.timeout_add(GLib.PRIORITY_DEFAULT, 500, () => {
+      // 4. Wait for Shell to clear actors, then Re-Enable
+      GLib.timeout_add(GLib.PRIORITY_DEFAULT, 600, () => {
           this._extensionManager.enableExtension(this._d2dId);
           
-          // 4. Final settling delay before we re-attach our engine
-          GLib.timeout_add(GLib.PRIORITY_DEFAULT, 350, () => {
+          // 5. Final settling delay before we re-attach our engine
+          GLib.timeout_add(GLib.PRIORITY_DEFAULT, 500, () => {
               this._checkDashToDock();
+
+              // 6. Final UI refresh and cleanup
+              if (this.animator) this.animator.reloadIcons();
+              if (this.dashContainer && this.dashContainer._animateIn) {
+                this.dashContainer._animateIn(0.2, 0); 
+                this._recheckAutohide(true);
+              }
+
+              // Release locks
+              this._settings.set_boolean('is-refreshing', false);
+              this._isCycling = false;
+              log("[cupertinisator] Hardware Cycle complete.");
               return GLib.SOURCE_REMOVE;
           });
           return GLib.SOURCE_REMOVE;
       });
       
     } catch (e) {
+      this._isCycling = false;
+      this._settings.set_boolean('is-refreshing', false);
       log(`[cupertinisator] Hardware Cycle error: ${e}`);
     }
   }

@@ -166,16 +166,12 @@ export default class DashAnimatorPreferences extends ExtensionPreferences {
         bigsurBtn.connect('toggled', () => { 
             if (bigsurBtn.active) settings.set_string('dock-theme', 'bigsur'); 
         });
-        settings.connect('changed::dock-theme', () => {
-            syncThemeButtons();
-            themeSpinner.visible = true;
-            themeSpinner.start();
-            GLib.timeout_add(GLib.PRIORITY_DEFAULT, 2000, () => {
-                themeSpinner.stop();
-                themeSpinner.visible = false;
-                return GLib.SOURCE_REMOVE;
-            });
-        });
+        
+        // Dynamic binding for the throbber
+        settings.bind('is-refreshing', themeSpinner, 'active', 0);
+        settings.bind('is-refreshing', themeSpinner, 'visible', 0);
+
+        settings.connect('changed::dock-theme', syncThemeButtons);
         themeRow.add_suffix(themeBox);
         themeRow.add_suffix(themeSpinner);
         themeStyleGroup.add(themeRow);
@@ -220,16 +216,12 @@ export default class DashAnimatorPreferences extends ExtensionPreferences {
         darkBtn.connect('toggled', () => { 
             if (darkBtn.active) settings.set_string('dock-color-scheme', 'dark'); 
         });
-        settings.connect('changed::dock-color-scheme', () => {
-            syncColorButtons();
-            colorSpinner.visible = true;
-            colorSpinner.start();
-            GLib.timeout_add(GLib.PRIORITY_DEFAULT, 2000, () => {
-                colorSpinner.stop();
-                colorSpinner.visible = false;
-                return GLib.SOURCE_REMOVE;
-            });
-        });
+
+        // Dynamic binding for the throbber
+        settings.bind('is-refreshing', colorSpinner, 'active', 0);
+        settings.bind('is-refreshing', colorSpinner, 'visible', 0);
+
+        settings.connect('changed::dock-color-scheme', syncColorButtons);
         colorRow.add_suffix(colorBox);
         colorRow.add_suffix(colorSpinner);
         colorGroup.add(colorRow);

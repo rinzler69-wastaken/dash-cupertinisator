@@ -61,5 +61,10 @@
       <summary>Show Unread Count Number</summary>
       <description>Show the physical number of unread notifications inside the badge.</description>
     </key>
+    <key name="is-refreshing" type="b">
+      <default>false</default>
+      <summary>Is Refreshing Theme</summary>
+      <description>Hidden state used to synchronize the preferences throbber with the Dash to Dock hardware cycle.</description>
+    </key>
   </schema>
 </schemalist>
