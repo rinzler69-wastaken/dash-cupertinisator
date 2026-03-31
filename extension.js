@@ -30,6 +30,7 @@ import { setInterval, clearInterval } from './utils.js';
 
 export default class DashAnimatorExtension extends Extension {
   enable() {
+    this._isInitializing = true;
     this._settings = this.getSettings('org.gnome.shell.extensions.dash-cupertinisator');
     this._applySettings();
     this._settingsChangedId = this._settings.connect('changed', () => this._applySettings());
@@ -45,6 +46,13 @@ export default class DashAnimatorExtension extends Extension {
 
     this._checkDashToDock();
     this._connectScreenSaver();
+
+    // Settle initialization state after 800ms
+    GLib.timeout_add(GLib.PRIORITY_DEFAULT, 800, () => {
+      this._isInitializing = false;
+      log("[cupertinisator] Extension initialization complete. Hardware Cycle enabled.");
+      return GLib.SOURCE_REMOVE;
+    });
   }
 
   _connectScreenSaver() {
@@ -612,18 +620,23 @@ export default class DashAnimatorExtension extends Extension {
         this._themeInTimeoutId = null;
       }
       
-      // Perform the Hard Toggle to clear Dash-to-Dock voodoo state
-      this._deepCycleD2D();
-
-      this._themeInTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1000, () => {
+      // Perform the Hard Toggle only if we are not in the middle of extension initialization
+      if (!this._isInitializing) {
+        log("[cupertinisator] Theme changed manually. Triggering Hardware Cycle.");
+        this._deepCycleD2D();
+        this._themeInTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1000, () => {
+          if (this.animator) this.animator.reloadIcons();
+          if (this.dashContainer && this.dashContainer._animateIn) {
+            this.dashContainer._animateIn(0.2, 0); 
+            this._recheckAutohide(true);
+          }
+          this._themeInTimeoutId = null;
+          return GLib.SOURCE_REMOVE;
+        });
+      } else {
+        log("[cupertinisator] Initialization: Skipping Hardware Cycle for startup theme application.");
         if (this.animator) this.animator.reloadIcons();
-        if (this.dashContainer && this.dashContainer._animateIn) {
-          this.dashContainer._animateIn(0.2, 0); 
-          this._recheckAutohide(true);
-        }
-        this._themeInTimeoutId = null;
-        return GLib.SOURCE_REMOVE;
-      });
+      }
     };
 
     applyThemeNow();
