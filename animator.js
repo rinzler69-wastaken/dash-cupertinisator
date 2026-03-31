@@ -347,9 +347,13 @@ export class Animator {
         let pP = icon.pivot_point;
         let cx = renderX + jX + iconSize * (pP.x * (1 - appliedScale) + appliedScale / 2);
         let cy = renderY + jY + iconSize * (pP.y * (1 - appliedScale) + appliedScale / 2);
+        //
+
         let margin = (26 + -13 * (appliedScale - 1)) * scaleFactor;
         //Adjust tooltip height apart from app icon vertically. first number is tooltip height for magnification OFF mode,
-        //second number is tooltip height for magnification ON mode
+        //second number is how much height would be added or subtracted to the first number for magnification ON mode. 
+        //DEFAULT= 26 + -13
+
         let tx, ty;
         if (dock_position === 'bottom') { tx = cx - label.width / 2; ty = cy - (iconSize * appliedScale) / 2 - label.height - margin; }
         else if (dock_position === 'top') { tx = cx - label.width / 2; ty = cy + (iconSize * appliedScale) / 2 + margin; }
