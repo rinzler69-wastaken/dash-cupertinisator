@@ -605,17 +605,20 @@ export default class DashAnimatorExtension extends Extension {
       this._loadedThemeFile = fileToLoad;
 
       St.ThemeContext.get_for_stage(global.stage).emit('changed');
-      log(`[cupertinisator] loaded theme: ${fileName}`);
+      log(`[cupertinisator] Loaded theme: ${fileName}. Triggering Atomic Reload.`);
 
       if (this._themeInTimeoutId) {
         GLib.source_remove(this._themeInTimeoutId);
         this._themeInTimeoutId = null;
       }
+      
+      // Perform the Atomic Reset to clear Dash-to-Dock voodoo state
+      this._atomicResetD2D();
+
       this._themeInTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 150, () => {
         if (this.animator) this.animator.reloadIcons();
         if (this.dashContainer && this.dashContainer._animateIn) {
-          this.dashContainer._animateIn(0.2, 0); // Slide back in with the fresh theme
-          // Safety kick: re-check if it should hide again after a delay
+          this.dashContainer._animateIn(0.2, 0); 
           this._recheckAutohide(true);
         }
         this._themeInTimeoutId = null;
@@ -624,7 +627,7 @@ export default class DashAnimatorExtension extends Extension {
     };
 
     if (this.dashContainer && this.dashContainer._animateOut && !this.dashContainer._isHidden) {
-      this.dashContainer._animateOut(0.2, 0); // Slide out
+      this.dashContainer._animateOut(0.2, 0); 
 
       this._themeApplyTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 250, () => {
         applyThemeNow();
@@ -633,6 +636,25 @@ export default class DashAnimatorExtension extends Extension {
       });
     } else {
       applyThemeNow();
+    }
+  }
+
+  _atomicResetD2D() {
+    try {
+      // 1. Locate D2D
+      let d2d = Main.extensionManager.lookup(D2D_UUID);
+      if (d2d && d2d.instance && d2d.instance._reset) {
+         log("[cupertinisator] Atomic: Driving D2D internal reset.");
+         d2d.instance._reset();
+      }
+      
+      // 2. Cycle our own extension to re-link to new D2D actors
+      log("[cupertinisator] Atomic: Refreshing local hooks.");
+      this._doDisable();
+      this._doEnable();
+      
+    } catch (e) {
+      log(`[cupertinisator] Atomic Reset error: ${e}`);
     }
   }
 
