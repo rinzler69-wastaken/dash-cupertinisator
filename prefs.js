@@ -145,11 +145,6 @@ export default class DashAnimatorPreferences extends ExtensionPreferences {
             valign: Gtk.Align.CENTER,
             css_classes: ['linked'],
         });
-        const themeSpinner = new Adw.Spinner({
-            valign: Gtk.Align.CENTER,
-            margin_start: 12,
-        });
-        themeSpinner.visible = false;
         const mojaveBtn = new Gtk.ToggleButton({ label: 'Mojave' });
         const bigsurBtn = new Gtk.ToggleButton({ label: 'Big Sur', group: mojaveBtn });
         themeBox.append(mojaveBtn);
@@ -167,13 +162,10 @@ export default class DashAnimatorPreferences extends ExtensionPreferences {
             if (bigsurBtn.active) settings.set_string('dock-theme', 'bigsur'); 
         });
         
-        // Dynamic binding for the throbber
-        settings.bind('is-refreshing', themeSpinner, 'active', 0);
-        settings.bind('is-refreshing', themeSpinner, 'visible', 0);
 
         settings.connect('changed::dock-theme', syncThemeButtons);
         themeRow.add_suffix(themeBox);
-        themeRow.add_suffix(themeSpinner);
+        themeRow.add_suffix(themeBox);
         themeStyleGroup.add(themeRow);
 
         const colorGroup = new Adw.PreferencesGroup({ title: 'Color Scheme' });
@@ -195,11 +187,6 @@ export default class DashAnimatorPreferences extends ExtensionPreferences {
             valign: Gtk.Align.CENTER,
             css_classes: ['linked'],
         });
-        const colorSpinner = new Adw.Spinner({
-            valign: Gtk.Align.CENTER,
-            margin_start: 12,
-        });
-        colorSpinner.visible = false;
         const lightBtn = new Gtk.ToggleButton({ label: 'Light' });
         const darkBtn = new Gtk.ToggleButton({ label: 'Dark', group: lightBtn });
         colorBox.append(lightBtn);
@@ -217,13 +204,10 @@ export default class DashAnimatorPreferences extends ExtensionPreferences {
             if (darkBtn.active) settings.set_string('dock-color-scheme', 'dark'); 
         });
 
-        // Dynamic binding for the throbber
-        settings.bind('is-refreshing', colorSpinner, 'active', 0);
-        settings.bind('is-refreshing', colorSpinner, 'visible', 0);
 
         settings.connect('changed::dock-color-scheme', syncColorButtons);
         colorRow.add_suffix(colorBox);
-        colorRow.add_suffix(colorSpinner);
+        colorRow.add_suffix(colorBox);
         colorGroup.add(colorRow);
 
         const updateColorSensitivity = () => { colorRow.sensitive = !settings.get_boolean('theme-aware'); };

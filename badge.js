@@ -114,6 +114,10 @@ export class BadgeManager {
     this._icons.forEach(uiIcon => {
       try { this._applyBadge(uiIcon); } catch (e) { }
     });
+    // Wake the animation loop so updateIcon() runs, computes geometry,
+    // and sets _geometryReady = true for any icons whose badges haven't
+    // been positioned yet (i.e. clones created while loop was dead).
+    try { this.onRebuild?.(); } catch (e) { }
   }
 
   _applyBadge(uiIcon) {

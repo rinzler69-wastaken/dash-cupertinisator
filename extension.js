@@ -550,34 +550,8 @@ export default class DashAnimatorExtension extends Extension {
     }
 
     if (!this._settings.get_boolean('override-theming')) {
-      const applyVanillaNow = () => {
-        this._removeThemeOverride(true);
-        if (this._themeInTimeoutId) {
-          GLib.source_remove(this._themeInTimeoutId);
-          this._themeInTimeoutId = null;
-        }
-        this._themeInTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 150, () => {
-          if (this.animator) this.animator.reloadIcons();
-          if (this.dashContainer && this.dashContainer._animateIn) {
-            this.dashContainer._animateIn(0.2, 0); // Slide back in with vanilla theme
-            // Safety kick: re-check if it should hide again after a delay
-            this._recheckAutohide(true);
-          }
-          this._themeInTimeoutId = null;
-          return GLib.SOURCE_REMOVE;
-        });
-      };
-
-      if (this.dashContainer && this.dashContainer._animateOut && !this.dashContainer._isHidden && this._loadedThemeFile) {
-        this.dashContainer._animateOut(0.2, 0); // Slide out before stripping
-        this._themeApplyTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 250, () => {
-          applyVanillaNow();
-          this._themeApplyTimeoutId = null;
-          return GLib.SOURCE_REMOVE;
-        });
-      } else {
-        applyVanillaNow();
-      }
+      this._removeThemeOverride(true);
+      if (this.animator) this.animator.reloadIcons();
       return;
     }
 
@@ -614,70 +588,30 @@ export default class DashAnimatorExtension extends Extension {
       this._loadedThemeFile = fileToLoad;
 
       St.ThemeContext.get_for_stage(global.stage).emit('changed');
-      log(`[cupertinisator] Loaded theme: ${fileName}. Triggering Hardware Cycle.`);
+      if (this.animator) this.animator.reloadIcons();
 
-      if (this._themeInTimeoutId) {
-        GLib.source_remove(this._themeInTimeoutId);
+      // Slide back in after theme is applied
+      this._themeInTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 50, () => {
         this._themeInTimeoutId = null;
-      }
-      
-      // Perform the Hard Toggle only if we are not in the middle of extension initialization
-      if (!this._isInitializing) {
-        log("[cupertinisator] Theme changed manually. Triggering Hardware Cycle.");
-        this._deepCycleD2D();
-      } else {
-        log("[cupertinisator] Initialization: Skipping Hardware Cycle for startup theme application.");
-        if (this.animator) this.animator.reloadIcons();
-      }
+        if (this.dashContainer && this.dashContainer.__animateIn)
+          this.dashContainer.__animateIn(0.2, 0);
+        return GLib.SOURCE_REMOVE;
+      });
     };
 
-    applyThemeNow();
-  }
-
-  _deepCycleD2D() {
-    try {
-      log("[cupertinisator] Hardware: Cycling D2D Extension.");
-      
-      // 1. Set Locks and notify UI
-      this._isCycling = true;
-      this._settings.set_boolean('is-refreshing', true);
-
-      // 2. Detach our own hooks first
-      this._doDisable();
-
-      // 3. Full Disable
-      this._extensionManager.disableExtension(this._d2dId);
-
-      // 4. Wait for Shell to clear actors, then Re-Enable
-      GLib.timeout_add(GLib.PRIORITY_DEFAULT, 600, () => {
-          this._extensionManager.enableExtension(this._d2dId);
-          
-          // 5. Final settling delay before we re-attach our engine
-          GLib.timeout_add(GLib.PRIORITY_DEFAULT, 500, () => {
-              this._checkDashToDock();
-
-              // 6. Final UI refresh and cleanup
-              if (this.animator) this.animator.reloadIcons();
-              if (this.dashContainer && this.dashContainer._animateIn) {
-                this.dashContainer._animateIn(0.2, 0); 
-                this._recheckAutohide(true);
-              }
-
-              // Release locks
-              this._settings.set_boolean('is-refreshing', false);
-              this._isCycling = false;
-              log("[cupertinisator] Hardware Cycle complete.");
-              return GLib.SOURCE_REMOVE;
-          });
-          return GLib.SOURCE_REMOVE;
+    // Slide out first, apply theme after animation completes, then slide back in
+    if (this.dashContainer && this.dashContainer.__animateOut) {
+      this.dashContainer.__animateOut(0.2, 0);
+      this._themeApplyTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 250, () => {
+        this._themeApplyTimeoutId = null;
+        applyThemeNow();
+        return GLib.SOURCE_REMOVE;
       });
-      
-    } catch (e) {
-      this._isCycling = false;
-      this._settings.set_boolean('is-refreshing', false);
-      log(`[cupertinisator] Hardware Cycle error: ${e}`);
+    } else {
+      applyThemeNow();
     }
   }
+
 
   _removeThemeOverride() {
     if (this._loadedThemeFile) {
@@ -693,17 +627,16 @@ export default class DashAnimatorExtension extends Extension {
     const s = this._settings;
 
     // Re-apply whenever any relevant setting changes
-    const reapply = () => this._applyThemeOverride();
     this._themeSettingIds = [
-      s.connect('changed::override-theming', reapply),
-      s.connect('changed::dock-theme', reapply),
-      s.connect('changed::theme-aware', reapply),
-      s.connect('changed::dock-color-scheme', reapply),
+      s.connect('changed::override-theming', () => this._applyThemeOverride()),
+      s.connect('changed::dock-theme', () => this._applyThemeOverride()),
+      s.connect('changed::theme-aware', () => this._applyThemeOverride()),
+      s.connect('changed::dock-color-scheme', () => this._applyThemeOverride()),
     ];
 
     // Follow system color-scheme changes
     this._desktopSettings = new Gio.Settings({ schema_id: 'org.gnome.desktop.interface' });
-    this._colorSchemeId = this._desktopSettings.connect('changed::color-scheme', reapply);
+    this._colorSchemeId = this._desktopSettings.connect('changed::color-scheme', () => this._applyThemeOverride());
 
     this._applyThemeOverride();
   }
@@ -734,7 +667,7 @@ export default class DashAnimatorExtension extends Extension {
       // Detect if we should be hidden (Fullscreen or Maximized window on current monitor)
       let monitorIndex = global.display.get_current_monitor();
       let inFullScreen = global.display.get_monitor_in_fullscreen(monitorIndex);
-      
+
       // Detect if any window is maximized on current monitor
       let isMaxed = false;
       try {
@@ -745,15 +678,9 @@ export default class DashAnimatorExtension extends Extension {
 
       // Forceful Safety Kick: If showing but should be hidden
       if (!this.dashContainer._isHidden && (inFullScreen || isMaxed || this._inFullScreen)) {
-        log("[cupertinisator] Atomic Safety: Forced Hide transition after Theme swap.");
-        // We use the "Magic Reset" sequence directly here for maximum reliability
-        this.dashContainer.__animateIn(0.2, 0); 
-        GLib.timeout_add(GLib.PRIORITY_DEFAULT, 250, () => {
-          if (this.dashContainer && this.dashContainer._animateOut) {
-            this.dashContainer._animateOut(0.2, 0);
-          }
-          return GLib.SOURCE_REMOVE;
-        });
+        if (this.dashContainer._animateOut) {
+          this.dashContainer._animateOut(0.2, 0);
+        }
       }
       return GLib.SOURCE_REMOVE;
     };

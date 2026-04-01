@@ -61,6 +61,17 @@ export class Animator {
     this._relayout = 8;
     this.show_dots = true;
     this._badgeManager = new BadgeManager();
+    // When a notification arrives, wake the loop so updateIcon() runs,
+    // computes geometry, sets _geometryReady = true. After the loop
+    // debounces off, _endAnimation calls _persistBadgedClones which
+    // keeps badged icons as clones permanently until next loop run.
+    this._badgeManager.onRebuild = () => {
+      // Immediately persist badge state so it's visible right now,
+      // not after the debounce window expires.
+      this._persistBadgedClones();
+      // Also wake the loop so updateIcon() runs geometry and _geometryReady is set.
+      this._startAnimation();
+    };
 
     try {
       this._badgeManager.setBadgesEnabled(this.extension._settings?.get_boolean('show-badges') ?? true);
@@ -75,6 +86,7 @@ export class Animator {
     this._enabled = false;
     this._endAnimation();
     if (this._oneShotId) { clearInterval(this._oneShotId); this._oneShotId = null; }
+    if (this._leaveSettleId) { clearTimeout(this._leaveSettleId); this._leaveSettleId = null; }
     if (this._iconsContainer) {
       Main.layoutManager.removeChrome(this._iconsContainer);
       this._iconsContainer.destroy();
@@ -121,11 +133,21 @@ export class Animator {
     return icons.some(i => (i._clickJump > 0 || i._attentionJump > 0));
   }
 
+  // isMagnifying() {
+  //   if (!this._iconsContainer) return false;
+  //   let threshold = this.extension.enable_magnification ? 1.6 : 1.01;
+  //   let icons = this._iconsContainer.get_children().filter(c => c.name !== 'cupertinisator-badge');
+  //   return icons.some(i => (i._currentScale > threshold || i._targetScale > threshold));
+  // }
+
   isMagnifying() {
     if (!this._iconsContainer) return false;
-    let threshold = this.extension.enable_magnification ? 1.6 : 1.01;
-    let icons = this._iconsContainer.get_children().filter(c => c.name !== 'cupertinisator-badge');
-    return icons.some(i => (i._currentScale > threshold || i._targetScale > threshold));
+    if (this.extension?.enable_magnification === false) return false;
+    let animateIcons = this._iconsContainer.get_children().filter(c => c.name !== 'cupertinisator-badge');
+    return animateIcons.some(icon => {
+      return (icon._currentScale !== undefined && icon._currentScale > 1.6) ||
+        (icon._targetScale !== undefined && icon._targetScale > 1.6);
+    });
   }
 
   preview() { this._preview = ANIM_PREVIEW_DURATION; }
@@ -319,10 +341,16 @@ export class Animator {
       let isMagnifying = (this.extension.enable_magnification && Math.abs(scale - 1.0) > 0.001);
       let isActive = isJumping || isMagnifying;
 
+      // Badged icons are always clones — badge lives on the clone and must
+      // never disappear during scrub. Everyone else uses isActive as before.
+      const appId = icon._appwell?.app?.get_id() ?? null;
+      const hasBadge = appId && ((this._badgeManager?._appMap?.[appId] ?? 0) > 0);
+      const forceClone = hasBadge;
+
       let appliedScale = (this.extension.enable_magnification === false) ? 1.0 : scale;
       icon.set_scale(appliedScale, appliedScale);
 
-      if ((!this.extension._isHidden || jumping) && isActive) {
+      if ((!this.extension._isHidden || jumping) && (isActive || forceClone)) {
         let sz = Math.round(iconSize * appliedScale);
         let pad = Math.round(12 * scaleFactor);
         if (dock_position === 'top' || dock_position === 'bottom') {
@@ -334,8 +362,8 @@ export class Animator {
         }
       }
 
-      if (icon._bin.first_child) icon._bin.first_child.opacity = isActive ? 0 : 255;
-      icon.visible = isActive;
+      if (icon._bin.first_child) icon._bin.first_child.opacity = (isActive || forceClone) ? 0 : 255;
+      icon.visible = isActive || forceClone;
 
       let renderX = (this.extension.enable_magnification === false) ? icon._nativeTarget[0] : pos[0];
       let renderY = (this.extension.enable_magnification === false) ? icon._nativeTarget[1] : pos[1];
@@ -398,6 +426,31 @@ export class Animator {
     if (this._intervalId) { clearInterval(this._intervalId); this._intervalId = null; }
     if (this._timeoutId) { clearInterval(this._timeoutId); this._timeoutId = null; }
     this._relayout = 0;
+    // After loop dies, keep badged icons as clones so badges remain visible.
+    // Any icon whose badge has a count > 0 stays with native opacity=0 (hidden)
+    // and clone opacity=255 (visible). Non-badged icons snap back to native.
+    this._persistBadgedClones();
+  }
+
+  _persistBadgedClones() {
+    if (!this._iconsContainer || !this._badgeManager) return;
+    const animateIcons = this._iconsContainer.get_children()
+      .filter(c => c.name !== 'cupertinisator-badge');
+    animateIcons.forEach(icon => {
+      const app = icon._appwell?.app ?? null;
+      const count = this._badgeManager._appMap?.[app?.get_id()] ?? 0;
+      const hasBadge = count > 0;
+      if (hasBadge) {
+        // Keep native icon hidden — clone stays as the visible representation
+        if (icon._bin?.first_child) icon._bin.first_child.opacity = 0;
+        icon.opacity = 255;
+        icon.visible = true;
+      } else {
+        // No badge — restore native icon, hide clone
+        if (icon._bin?.first_child) icon._bin.first_child.opacity = 255;
+        icon.visible = false;
+      }
+    });
   }
 
   _debounceEndAnimation() {
@@ -407,7 +460,24 @@ export class Animator {
 
   _onMotionEvent() { this._onEnterEvent(); }
   _onEnterEvent() { this._inDash = true; this._startAnimation(); }
-  _onLeaveEvent() { this._inDash = false; this._debounceEndAnimation(); }
+  _onLeaveEvent() {
+    this._inDash = false;
+    // When magnification is ON the icon lerp settle naturally keeps the loop
+    // alive ~300-500ms after cursor exit, giving D2D a clean quiet window to
+    // commit to hiding. Replicate that window explicitly for magnification OFF
+    // by delaying debounce slightly so D2D gets the same settling opportunity.
+    if (this.extension?.enable_magnification === false) {
+      if (this._leaveSettleId) {
+        clearTimeout(this._leaveSettleId);
+      }
+      this._leaveSettleId = setTimeout(() => {
+        this._leaveSettleId = null;
+        this._debounceEndAnimation();
+      }, 400);
+    } else {
+      this._debounceEndAnimation();
+    }
+  }
   _onFocusWindow() { this._relayout = 8; if (!this._intervalId) this._startAnimation(); }
 
   _onFullScreen() {
