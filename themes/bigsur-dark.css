@@ -121,6 +121,7 @@
 } */
 
 #dashtodockContainer.bottom.shrink #dash .dash-item-container .app-well-app .overview-icon,
+#dashtodockContainer.bottom.shrink #dash .dash-item-container .show-apps .overview-icon,
 #dashtodockContainer.bottom.shrink #dash .dash-item-container .overview-tile .overview-icon {
   background-color: transparent !important;
   box-shadow: none !important;
@@ -138,8 +139,18 @@
   /* match your icon rounding */
 }
 
-#dashtodockContainer.bottom.shrink #dash .dash-item-container .app-well-app:hover .overview-icon {
+#dashtodockContainer.bottom.shrink #dash .dash-item-container .app-well-app:hover .overview-icon,
+#dashtodockContainer.bottom.shrink #dash .dash-item-container .show-apps:hover .overview-icon,
+#dashtodockContainer.bottom.shrink #dash .dash-item-container .overview-tile:hover .overview-icon {
   background-color: transparent !important;
+  box-shadow: none !important;
+}
+
+#dashtodockContainer.bottom.shrink #dash .dash-item-container .app-well-app.focused:hover .overview-icon,
+#dashtodockContainer.bottom.shrink #dash .dash-item-container .overview-tile.focused:hover .overview-icon {
+  background-color: rgba(255, 255, 255, 0.2) !important;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.45),
+    inset 0 -1px 2px rgba(255, 255, 255, 0.05) !important;
 }
 
 .app-grid-running-dot {
@@ -285,6 +296,7 @@
 }
 
 #dashtodockContainer.left.shrink #dash .dash-item-container .app-well-app .overview-icon,
+#dashtodockContainer.left.shrink #dash .dash-item-container .show-apps .overview-icon,
 #dashtodockContainer.left.shrink #dash .dash-item-container .overview-tile .overview-icon {
   background-color: transparent !important;
   box-shadow: none !important;
@@ -298,8 +310,18 @@
   border-radius: 18px !important;
 }
 
-#dashtodockContainer.left.shrink #dash .dash-item-container .app-well-app:hover .overview-icon {
+#dashtodockContainer.left.shrink #dash .dash-item-container .app-well-app:hover .overview-icon,
+#dashtodockContainer.left.shrink #dash .dash-item-container .show-apps:hover .overview-icon,
+#dashtodockContainer.left.shrink #dash .dash-item-container .overview-tile:hover .overview-icon {
   background-color: transparent !important;
+  box-shadow: none !important;
+}
+
+#dashtodockContainer.left.shrink #dash .dash-item-container .app-well-app.focused:hover .overview-icon,
+#dashtodockContainer.left.shrink #dash .dash-item-container .overview-tile.focused:hover .overview-icon {
+  background-color: rgba(255, 255, 255, 0.2) !important;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.45),
+    inset 0 -1px 2px rgba(255, 255, 255, 0.05) !important;
 }
 
 
@@ -416,6 +438,7 @@
 }
 
 #dashtodockContainer.right.shrink #dash .dash-item-container .app-well-app .overview-icon,
+#dashtodockContainer.right.shrink #dash .dash-item-container .show-apps .overview-icon,
 #dashtodockContainer.right.shrink #dash .dash-item-container .overview-tile .overview-icon {
   background-color: transparent !important;
   box-shadow: none !important;
@@ -429,6 +452,16 @@
   border-radius: 18px !important;
 }
 
-#dashtodockContainer.right.shrink #dash .dash-item-container .app-well-app:hover .overview-icon {
+#dashtodockContainer.right.shrink #dash .dash-item-container .app-well-app:hover .overview-icon,
+#dashtodockContainer.right.shrink #dash .dash-item-container .show-apps:hover .overview-icon,
+#dashtodockContainer.right.shrink #dash .dash-item-container .overview-tile:hover .overview-icon {
   background-color: transparent !important;
+  box-shadow: none !important;
+}
+
+#dashtodockContainer.right.shrink #dash .dash-item-container .app-well-app.focused:hover .overview-icon,
+#dashtodockContainer.right.shrink #dash .dash-item-container .overview-tile.focused:hover .overview-icon {
+  background-color: rgba(255, 255, 255, 0.2) !important;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.45),
+    inset 0 -1px 2px rgba(255, 255, 255, 0.05) !important;
 }
