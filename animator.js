@@ -39,21 +39,17 @@ export class Animator {
       reactive: false,
       can_focus: false
     });
-    Main.layoutManager.addChrome(this._iconsContainer, {
-      affectsStruts: false,
-      affectsInputRegion: false,
-      trackFullscreen: false
-    });
+
+Main.uiGroup.add_child(this._iconsContainer);
+
     this._dotsContainer = new St.Widget({
       name: 'dotsContainer',
       reactive: false,
       can_focus: false
     });
-    Main.layoutManager.addChrome(this._dotsContainer, {
-      affectsStruts: false,
-      affectsInputRegion: false,
-      trackFullscreen: false
-    });
+
+    // CHANGE: Add directly to uiGroup
+    Main.uiGroup.add_child(this._dotsContainer);
 
     this._enabled = true;
     this._dragging = false;
@@ -88,10 +84,10 @@ export class Animator {
     if (this._oneShotId) { clearInterval(this._oneShotId); this._oneShotId = null; }
     if (this._leaveSettleId) { clearTimeout(this._leaveSettleId); this._leaveSettleId = null; }
     if (this._iconsContainer) {
-      Main.layoutManager.removeChrome(this._iconsContainer);
+Main.uiGroup.remove_child(this._iconsContainer);
       this._iconsContainer.destroy();
       this._iconsContainer = null;
-      Main.layoutManager.removeChrome(this._dotsContainer);
+Main.uiGroup.remove_child(this._dotsContainer);
       this._dotsContainer.destroy();
       this._dotsContainer = null;
     }
@@ -130,7 +126,13 @@ export class Animator {
   isJumping() {
     if (!this._iconsContainer) return false;
     let icons = this._iconsContainer.get_children().filter(c => c.name !== 'cupertinisator-badge');
-    return icons.some(i => (i._clickJump > 0 || i._attentionJump > 0));
+    // Treat the urgent "quiet gap" as active so auto-hide doesn't cancel
+    // the next bounce cycle.
+    return icons.some(i =>
+      (i._clickJump > 0) ||
+      (i._attentionJump > 0) ||
+      (i._appwell?.urgent && (i._attentionCooldown > 0))
+    );
   }
 
   // isMagnifying() {
@@ -258,7 +260,7 @@ export class Animator {
             if (icon._appwell.app && icon._appwell.app.get_n_windows() === 0) { icon._clickJump = 1.0; this._startAnimation(); if (this.dashContainer?._animateIn) this.dashContainer._animateIn(0.2, 0); }
           });
           icon._appwell.connect('notify::urgent', () => {
-            if (icon._appwell.urgent && !(icon._attentionJump > 0)) { icon._attentionJump = 1.0; icon._attentionCooldown = 60; this._startAnimation(); if (this.dashContainer?._animateIn) this.dashContainer._animateIn(0.2, 0); }
+            if (icon._appwell.urgent && !(icon._attentionJump > 0)) { icon._attentionJump = 1.0; icon._attentionCooldown = 0; this._startAnimation(); if (this.dashContainer?._animateIn) this.dashContainer._animateIn(0.2, 0); }
           });
         }
       }
@@ -326,19 +328,56 @@ export class Animator {
         let jh = this.extension.jump_height || 0.85;
         let off = Math.sin(icon._clickJump * Math.PI) * iconSize * ANIM_ICON_RAISE * scaleFactor * 1.65 * jh;
         if (dock_position === 'bottom') jY = -off; else if (dock_position === 'top') jY = off; else if (dock_position === 'left') jX = off; else if (dock_position === 'right') jX = -off;
-        icon._clickJump -= 0.0275 * (this.extension.jump_speed || 1.0); if (icon._clickJump < 0) icon._clickJump = 0;
+        icon._clickJump -= 0.0275 * (this.extension.jump_speed || 1.0);
+        if (icon._clickJump <= 0) {
+          const app = icon._appwell?.app;
+          const appId = app?.get_id() ?? '';
+          // Chromium-based browsers report STARTING for a long time across
+          // multiple profile windows — cap them at one bounce cycle.
+          const isChromium = appId.includes('chromium') || appId.includes('chrome') ||
+                             appId.includes('brave') || appId.includes('microsoft-edge') ||
+                             appId.includes('opera');
+          if (!isChromium && app?.get_state() === Shell.AppState.STARTING) {
+            icon._clickJump = 1.0; // App still loading — continue bouncing
+          } else {
+            icon._clickJump = 0;
+          }
+        }
         didAnimate = true;
       }
       if (icon._attentionJump > 0) {
         let jh = this.extension.jump_height || 0.85;
         let off = Math.sin(icon._attentionJump * Math.PI) * iconSize * ANIM_ICON_RAISE * scaleFactor * 1.65 * jh;
         if (dock_position === 'bottom') jY = -off; else if (dock_position === 'top') jY = off; else if (dock_position === 'left') jX = off; else if (dock_position === 'right') jX = -off;
-        icon._attentionJump -= 0.0275 * (this.extension.jump_speed || 1.0); if (icon._attentionJump < 0) icon._attentionJump = 0;
+        icon._attentionJump -= 0.0275 * (this.extension.jump_speed || 1.0);
+        if (icon._attentionJump <= 0) {
+          icon._attentionJump = 0;
+          // If still urgent — start the 1s quiet gap before next bounce cycle
+          if (icon._appwell?.urgent) {
+            icon._attentionCooldown = Math.round(1000 / this.animationInterval);
+          }
+        }
         didAnimate = true;
+      } else if (icon._appwell?.urgent) {
+        if (icon._attentionCooldown > 0) {
+          icon._attentionCooldown--;
+          didAnimate = true;
+        } else {
+          // Quiet gap expired — fire next bounce cycle
+          icon._attentionJump = 1.0;
+          didAnimate = true;
+        }
       }
 
       let isJumping = (icon._clickJump > 0 || icon._attentionJump > 0);
-      let isMagnifying = (this.extension.enable_magnification && Math.abs(scale - 1.0) > 0.001);
+      // Keep magnification "active" as long as cursor is in the dock and
+      // magnification pref is on — not just while the lerp is in flight.
+      //
+      // Also keep it active briefly after cursor leaves while we lerp back to
+      // 1.0, otherwise spacing can remain blown out until the next animation.
+      const magnificationEnabled = this.extension.enable_magnification !== false;
+      let isMagnifying = magnificationEnabled &&
+        (this._inDash || Math.abs(fromScale - 1.0) > 0.001 || Math.abs(scale - 1.0) > 0.001);
       let isActive = isJumping || isMagnifying;
 
       // Badged icons are always clones — badge lives on the clone and must
@@ -350,7 +389,8 @@ export class Animator {
       let appliedScale = (this.extension.enable_magnification === false) ? 1.0 : scale;
       icon.set_scale(appliedScale, appliedScale);
 
-      if ((!this.extension._isHidden || jumping) && (isActive || forceClone)) {
+      const canAffectLayout = (!this.extension._isHidden || jumping);
+      if (canAffectLayout && (isActive || forceClone)) {
         let sz = Math.round(iconSize * appliedScale);
         let pad = Math.round(12 * scaleFactor);
         if (dock_position === 'top' || dock_position === 'bottom') {
@@ -359,6 +399,17 @@ export class Animator {
         } else {
           icon._bin.set_height(sz);
           if (icon._appwell?.get_parent()) icon._appwell.get_parent().set_height(sz + pad);
+        }
+      } else if (canAffectLayout) {
+        // Fully restore native layout constraints when the clone is inactive,
+        // otherwise fixed widths/heights can keep icons spaced apart.
+        let sz = Math.round(iconSize);
+        if (dock_position === 'top' || dock_position === 'bottom') {
+          icon._bin.set_width(sz);
+          if (icon._appwell?.get_parent()) icon._appwell.get_parent().set_width(-1);
+        } else {
+          icon._bin.set_height(sz);
+          if (icon._appwell?.get_parent()) icon._appwell.get_parent().set_height(-1);
         }
       }
 
@@ -371,7 +422,8 @@ export class Animator {
 
       if (icon._label) {
         let label = icon._label;
-        if (icon !== nearestIcon && !isActive) label.opacity = 0;
+        // Hide tooltip as soon as cursor leaves the dock; keep it for bounces.
+        if (icon !== nearestIcon && !(isJumping || this._inDash)) label.opacity = 0;
         let pP = icon.pivot_point;
         let cx = renderX + jX + iconSize * (pP.x * (1 - appliedScale) + appliedScale / 2);
         let cy = renderY + jY + iconSize * (pP.y * (1 - appliedScale) + appliedScale / 2);
@@ -424,7 +476,7 @@ export class Animator {
 
   _endAnimation() {
     if (this._intervalId) { clearInterval(this._intervalId); this._intervalId = null; }
-    if (this._timeoutId) { clearInterval(this._timeoutId); this._timeoutId = null; }
+    if (this._timeoutId) { clearTimeout(this._timeoutId); this._timeoutId = null; }
     this._relayout = 0;
     // After loop dies, keep badged icons as clones so badges remain visible.
     // Any icon whose badge has a count > 0 stays with native opacity=0 (hidden)
@@ -432,29 +484,46 @@ export class Animator {
     this._persistBadgedClones();
   }
 
-  _persistBadgedClones() {
+_persistBadgedClones() {
     if (!this._iconsContainer || !this._badgeManager) return;
-    const animateIcons = this._iconsContainer.get_children()
-      .filter(c => c.name !== 'cupertinisator-badge');
-    animateIcons.forEach(icon => {
-      const app = icon._appwell?.app ?? null;
-      const count = this._badgeManager._appMap?.[app?.get_id()] ?? 0;
-      const hasBadge = count > 0;
-      if (hasBadge) {
-        // Keep native icon hidden — clone stays as the visible representation
-        if (icon._bin?.first_child) icon._bin.first_child.opacity = 0;
-        icon.opacity = 255;
-        icon.visible = true;
-      } else {
-        // No badge — restore native icon, hide clone
-        if (icon._bin?.first_child) icon._bin.first_child.opacity = 255;
-        icon.visible = false;
-      }
+    
+    this._iconsContainer.get_children().forEach(icon => {
+        const app = icon._appwell?.app ?? null;
+        const count = this._badgeManager._appMap?.[app?.get_id()] ?? 0;
+        const hasBadge = count > 0;
+
+        // Atomic Swap
+        if (hasBadge) {
+            // Clone takes over
+            if (icon._bin?.first_child) icon._bin.first_child.opacity = 0;
+            icon.visible = true;
+            icon.opacity = 255;
+        } else {
+            // Restore Original
+            // 1. Reveal original FIRST
+            if (icon._bin?.first_child) icon._bin.first_child.opacity = 255;
+            // 2. Hide clone AFTER
+            icon.visible = false;
+        }
     });
-  }
+}
 
   _debounceEndAnimation() {
-    if (this._timeoutId) clearInterval(this._timeoutId);
+    // While cursor is in the dock (and magnification is enabled), keep the
+    // animation loop alive even if the lerp has converged. Otherwise the
+    // debounce timer can stop the loop, _endAnimation will hide clones, and
+    // the last expanded bin sizes leave icons spaced apart until the next
+    // motion wakes the loop.
+    const magnificationEnabled = this.extension?.enable_magnification !== false;
+    if (magnificationEnabled && this._inDash) {
+      if (this._timeoutId) {
+        clearTimeout(this._timeoutId);
+        this._timeoutId = null;
+      }
+      return;
+    }
+
+    if (this._timeoutId) clearTimeout(this._timeoutId);
     this._timeoutId = setTimeout(this._endAnimation.bind(this), ANIM_DEBOUNCE_END_DELAY + this.animationInterval);
   }
 
@@ -495,6 +564,7 @@ export class Animator {
 
   _restoreIcons() {
     this._findIcons().forEach(c => {
+      if (!c || !c._bin) return; // Safety check
       if (c._icon) c._icon.opacity = 255;
       if (c._bin?.first_child) c._bin.first_child.opacity = 255;
       if (this.dashContainer && this.dash) {
